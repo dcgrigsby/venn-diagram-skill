@@ -130,10 +130,13 @@ function maximumFitWidth(key) {
 
 function revisionRegion(label, fonts) {
   const explicitLines = label.text.split('\n');
-  const measuredWidth = Math.max(...explicitLines.map((line) =>
-    measureLine(line, label.bold, DIAGRAM_FONT_SIZE, fonts)));
+  const widest = explicitLines.map((line) => ({
+    line,
+    width: measureLine(line, label.bold, DIAGRAM_FONT_SIZE, fonts),
+  })).reduce((first, second) => second.width > first.width ? second : first);
+  const measuredWidth = widest.width;
   const maxFitWidth = maximumFitWidth(label.key);
-  const characters = [...label.text.replace(/\s+/gu, '')].length;
+  const characters = [...widest.line.replace(/\s+/gu, '')].length;
   const averageGlyphWidth = Math.max(1, measuredWidth / Math.max(1, characters));
   const upper = Math.max(1, Math.floor(maxFitWidth / averageGlyphWidth));
   return {

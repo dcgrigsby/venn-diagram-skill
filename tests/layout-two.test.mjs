@@ -127,6 +127,18 @@ test('maps overlong typography to revision while unsupported glyphs stay input e
   }), { code: 'UNSUPPORTED_GLYPH' });
 });
 
+test('multiline revision targets count characters in the measured widest line', async () => {
+  const layout = await layoutInline({
+    sets: [
+      { id: 'a', label: `${'W'.repeat(25)}\n${'W'.repeat(25)}` },
+      { id: 'b', label: 'Delivery' },
+    ],
+  });
+  assert.equal(layout.status, 'needs_revision');
+  assert.deepEqual(layout.regions.map(({ key }) => key), ['a']);
+  assert.deepEqual(layout.regions[0].targetChars, [10, 14]);
+});
+
 test('largest valid two-set layout avoids a full-canvas cubic scan', async () => {
   const start = performance.now();
   const layout = await layoutInline({
