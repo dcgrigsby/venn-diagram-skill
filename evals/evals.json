@@ -61,7 +61,7 @@
       "expected_output": "An observed needs_revision loop followed by a completed two-set pair using a concise, disclosed overlap phrase.",
       "files": [],
       "expectations": [
-        "The first actual invocation of scripts/render-venn.mjs exits 2 and emits a structured status needs_revision report with limiting region key ab and fit diagnostics including measuredWidth, maxFitWidth, targetChars, and attemptedLimits; the agent shows that evidence.",
+        "The first invocation of scripts/render-venn.mjs with the initial specification exits 2 and emits a structured status needs_revision report with limiting region key ab and fit diagnostics including measuredWidth, maxFitWidth, targetChars, and attemptedLimits; the agent shows that evidence.",
         "The proposed shorter overlap phrase preserves the named semantic anchors: continuous synthesis, qualitative and quantitative inputs, and executable, resourced, validated strategic decisions. If any anchor cannot fit, the agent explicitly names what is lost and offers the closest concise options; a generic phrase such as Evidence-backed action alone does not satisfy this expectation. The label is not shrunk, clipped, or truncated.",
         "A subsequent invocation produces both SVG and PNG with a solid white background and PNG longest side 1600 pixels.",
         "The final SVG has exactly two equal-radius circles and labels only a, b, and ab.",
