@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -163,6 +163,13 @@ test('preserves explicit accessibility text', () => {
   assert.deepEqual(normalized.accessibility, { title: 'My title', description: 'My description' });
 });
 
+test('rejects XML-forbidden control characters in accessibility metadata', () => {
+  const raw = basic(); raw.accessibility = { title: 'Invalid\u0000 title', description: 'Fine' };
+  rejects(raw, 'INVALID_ACCESSIBILITY', 'accessibility.title');
+  raw.accessibility = { title: 'Fine', description: 'Invalid\uD800 description' };
+  rejects(raw, 'INVALID_ACCESSIBILITY', 'accessibility.description');
+});
+
 test('resolves a nested output directory without creating it during normalization', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'venn-directory-'));
   try {
@@ -195,16 +202,27 @@ test('falls back to a safe basename when labels cannot be transliterated', () =>
   assert.equal(normalizeSpec(raw, projectRoot).output.basename, 'venn-diagram');
 });
 
-test('CLI reports validated normalized spec and no artifacts', () => {
-  const run = spawnSync(process.execPath, ['scripts/render-venn.mjs', 'tests/fixtures/two-basic.json'], {
-    cwd: projectRoot, encoding: 'utf8',
-  });
-  assert.equal(run.status, 0, run.stderr);
-  const report = JSON.parse(run.stdout);
-  assert.equal(report.status, 'validated');
-  assert.equal(report.spec.output.basename, 'product-engineering-venn');
-  assert.deepEqual(report.spec.overlaps, { ab: { text: 'Feasible roadmap', bold: true } });
-  assert.equal(report.artifacts, undefined);
+test('built CLI reports incomplete output with an SVG artifact', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'venn-built-cli-'));
+  try {
+    const raw = fixture('two-basic.json');
+    raw.output.directory = directory;
+    const input = join(directory, 'spec.json');
+    await writeFile(input, JSON.stringify(raw));
+    const run = spawnSync(process.execPath, ['scripts/render-venn.mjs', input], {
+      cwd: projectRoot, encoding: 'utf8',
+    });
+    assert.equal(run.status, 1, run.stderr);
+    const report = JSON.parse(run.stdout);
+    assert.equal(report.status, 'incomplete');
+    assert.equal(report.svg.status, 'written');
+    assert.equal(report.png.status, 'pending');
+    assert.match(await readFile(report.svg.path, 'utf8'), /<svg\b/);
+    assert.equal(report.png.path, null);
+    assert.equal(existsSync(report.png.plannedPath), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('CLI emits one structured JSON error for invalid specification', () => {

@@ -182,6 +182,9 @@ function normalizeAccessibility(value, sets, overlaps) {
     if (value[key] !== undefined && typeof value[key] !== 'string') {
       fail('INVALID_ACCESSIBILITY', `accessibility.${key}`, `accessibility.${key} must be a string`);
     }
+    if (value[key] !== undefined && /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/u.test(value[key])) {
+      fail('INVALID_ACCESSIBILITY', `accessibility.${key}`, `accessibility.${key} contains a character forbidden in XML`);
+    }
   }
   const title = value.title ?? `Venn diagram: ${sets.map((set) => set.label).join(', ')}`;
   const namedOverlaps = [...overlaps].map(([key, item]) => {

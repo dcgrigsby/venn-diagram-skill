@@ -1,6 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { normalizeSpec, SpecError } from './spec.mjs';
+import { loadFonts } from './typography.mjs';
+import { layoutDiagram } from './layout.mjs';
+import { serializeSvg } from './svg.mjs';
+import { atomicWrite, reserveOutputPair } from './output.mjs';
 
 export const RENDERER_INFO = Object.freeze({
   name: 'venn-diagram-skill',
@@ -36,11 +40,35 @@ export async function main(argv = process.argv.slice(2)) {
         throw new SpecError('INVALID_JSON', '$', `invalid JSON: ${error.message}`);
       }
       const spec = normalizeSpec(raw, process.cwd());
+      const fonts = await loadFonts({
+        regular: new URL('../vendor/fonts/NotoSans-Regular.ttf', import.meta.url),
+        bold: new URL('../vendor/fonts/NotoSans-Bold.ttf', import.meta.url),
+      });
+      const layout = layoutDiagram(spec, fonts);
+      if (layout.status === 'needs_revision') {
+        process.stdout.write(`${JSON.stringify(layout)}\n`);
+        return 2;
+      }
+      const svg = serializeSvg(layout, fonts, spec.accessibility);
+      let output;
+      try {
+        output = await reserveOutputPair(spec.output);
+        await atomicWrite(output.svgPath, svg);
+        await output.pngReservation.release();
+      } catch (error) {
+        if (output) {
+          await output.svgReservation.release();
+          await output.pngReservation.release();
+        }
+        throw new SpecError('OUTPUT_ERROR', 'output', `unable to write output: ${error.message}`);
+      }
       process.stdout.write(`${JSON.stringify({
-        status: 'validated',
-        spec: { ...spec, overlaps: Object.fromEntries(spec.overlaps) },
+        status: 'incomplete',
+        svg: { path: output.svgPath, status: 'written' },
+        png: { path: null, plannedPath: output.pngPath, status: 'pending' },
+        message: 'SVG written; PNG rendering is pending',
       })}\n`);
-      return 0;
+      return 1;
     } catch (error) {
       return reportError(error);
     }

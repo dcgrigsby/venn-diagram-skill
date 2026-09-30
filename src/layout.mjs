@@ -320,6 +320,7 @@ function finalLayout(circles, labels, spec) {
       box: { ...label.box, x: label.box.x + shiftX, y: label.box.y + shiftY },
     })),
     background: spec.style.background,
+    opacity: spec.style.opacity,
     warnings: [],
   };
 }

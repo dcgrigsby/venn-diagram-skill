@@ -469,7 +469,7 @@ var require_opentype = __commonJS({
         }
         options = createSVGParsingOptions(options);
         this.commands = [];
-        const number = "0123456789";
+        const number2 = "0123456789";
         const supportedCommands = "MmLlQqCcZzHhVv";
         const unsupportedCommands = "SsTtAa";
         const sign = "-+";
@@ -559,7 +559,7 @@ var require_opentype = __commonJS({
         for (let i = 0; i < pathData.length; i++) {
           const token = pathData.charAt(i);
           const lastBuffer = buffer[buffer.length - 1];
-          if (number.indexOf(token) > -1) {
+          if (number2.indexOf(token) > -1) {
             buffer[buffer.length - 1] += token;
           } else if (sign.indexOf(token) > -1) {
             if (!command.type && !this.commands.length) {
@@ -6704,7 +6704,7 @@ var require_opentype = __commonJS({
         const stack = [];
         let nStems = 0;
         let haveWidth = false;
-        let open = false;
+        let open2 = false;
         let x = 0;
         let y = 0;
         let subrs;
@@ -6743,11 +6743,11 @@ var require_opentype = __commonJS({
         const paintType = applyPaintType(font, p);
         let width = defaultWidthX;
         function newContour(x2, y2) {
-          if (open && paintType !== 2) {
+          if (open2 && paintType !== 2) {
             p.closePath();
           }
           p.moveTo(x2, y2);
-          open = true;
+          open2 = true;
         }
         function parseStems() {
           let hasWidthArg;
@@ -6974,9 +6974,9 @@ var require_opentype = __commonJS({
                   width = stack.shift() + nominalWidthX;
                   haveWidth = true;
                 }
-                if (open && paintType !== 2) {
+                if (open2 && paintType !== 2) {
                   p.closePath();
-                  open = false;
+                  open2 = false;
                 }
                 break;
               case 15:
@@ -16231,7 +16231,7 @@ var require_opentype = __commonJS({
 });
 
 // src/cli.mjs
-import { readFile } from "node:fs/promises";
+import { readFile as readFile2 } from "node:fs/promises";
 import { resolve as resolve2 } from "node:path";
 
 // src/spec.mjs
@@ -16392,6 +16392,8 @@ for (const key in colors) Object.freeze(colors[key]);
 var color_name_default = Object.freeze(colors);
 
 // src/color.mjs
+var CIRCLE_ORDER = ["a", "b", "c"];
+var TEXT_COLORS = ["#000000", "#FFFFFF"];
 function parseColor(value) {
   if (typeof value !== "string") throw new TypeError("Color must be a string");
   const hex = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(value);
@@ -16410,6 +16412,56 @@ function parseColor(value) {
     return { r: named[0], g: named[1], b: named[2], a: 1 };
   }
   throw new TypeError(`Unsupported CSS color: ${value}`);
+}
+function composite(foreground, background) {
+  const alpha = foreground.a + background.a * (1 - foreground.a);
+  if (alpha === 0) return { r: 0, g: 0, b: 0, a: 0 };
+  const channel = (key) => (foreground[key] * foreground.a + background[key] * background.a * (1 - foreground.a)) / alpha;
+  return { r: channel("r"), g: channel("g"), b: channel("b"), a: alpha };
+}
+function regionBackground(regionKey, circleColors, opacity, background) {
+  let result = background;
+  for (const key of CIRCLE_ORDER) {
+    if (regionKey.includes(key) && circleColors.has(key)) {
+      const fill = circleColors.get(key);
+      result = composite({ ...fill, a: fill.a * opacity }, result);
+    }
+  }
+  return {
+    r: Math.round(result.r),
+    g: Math.round(result.g),
+    b: Math.round(result.b),
+    a: result.a
+  };
+}
+function relativeLuminance({ r, g, b }) {
+  const linearize = (value) => {
+    const channel = value / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linearize(r) + 0.7152 * linearize(g) + 0.0722 * linearize(b);
+}
+function contrastRatio(foreground, background) {
+  const first = relativeLuminance(foreground);
+  const second = relativeLuminance(background);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+function chooseGlobalTextColor(regionBackgrounds) {
+  const candidates = TEXT_COLORS;
+  const scored = candidates.map((color) => ({
+    color,
+    minimumContrast: Math.min(
+      ...regionBackgrounds.map((background) => contrastRatio(parseColor(color), background))
+    )
+  }));
+  scored.sort(
+    (left, right) => right.minimumContrast - left.minimumContrast || left.color.localeCompare(right.color)
+  );
+  return { ...scored[0], warning: scored[0].minimumContrast < 4.5 };
+}
+function outlineColor(fill) {
+  const darken = (channel) => Math.round(channel * 0.65);
+  return `rgba(${darken(fill.r)}, ${darken(fill.g)}, ${darken(fill.b)}, 0.9)`;
 }
 
 // src/spec.mjs
@@ -16565,6 +16617,9 @@ function normalizeAccessibility(value, sets, overlaps) {
     if (value[key] !== void 0 && typeof value[key] !== "string") {
       fail("INVALID_ACCESSIBILITY", `accessibility.${key}`, `accessibility.${key} must be a string`);
     }
+    if (value[key] !== void 0 && /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/u.test(value[key])) {
+      fail("INVALID_ACCESSIBILITY", `accessibility.${key}`, `accessibility.${key} contains a character forbidden in XML`);
+    }
   }
   const title = value.title ?? `Venn diagram: ${sets.map((set) => set.label).join(", ")}`;
   const namedOverlaps = [...overlaps].map(([key, item]) => {
@@ -16585,67 +16640,18 @@ function normalizeSpec(raw, cwd) {
   return { version: 1, sets, overlaps, style, accessibility, output };
 }
 
-// src/cli.mjs
-var RENDERER_INFO = Object.freeze({
-  name: "venn-diagram-skill",
-  rendererVersion: "0.1.0",
-  schemaVersion: 1
-});
-function reportError(error, debugMessage = error.stack ?? String(error)) {
-  const detail = error instanceof SpecError ? error : new SpecError("INPUT_ERROR", "$", "unable to read specification file");
-  process.stdout.write(`${JSON.stringify({
-    status: "error",
-    error: { code: detail.code, path: detail.path, message: detail.message }
-  })}
-`);
-  process.stderr.write(`${debugMessage}
-`);
-  return 1;
-}
-async function main(argv = process.argv.slice(2)) {
-  if (argv.length === 1 && argv[0] === "--version") {
-    process.stdout.write(`${JSON.stringify(RENDERER_INFO)}
-`);
-    return 0;
-  }
-  if (argv.length === 1 && !argv[0].startsWith("-")) {
-    const specPath = resolve2(argv[0]);
-    try {
-      const source = await readFile(specPath, "utf8");
-      let raw;
-      try {
-        raw = JSON.parse(source);
-      } catch (error) {
-        throw new SpecError("INVALID_JSON", "$", `invalid JSON: ${error.message}`);
-      }
-      const spec = normalizeSpec(raw, process.cwd());
-      process.stdout.write(`${JSON.stringify({
-        status: "validated",
-        spec: { ...spec, overlaps: Object.fromEntries(spec.overlaps) }
-      })}
-`);
-      return 0;
-    } catch (error) {
-      return reportError(error);
-    }
-  }
-  return reportError(
-    new SpecError("INVALID_ARGUMENTS", "argv", "expected one specification JSON path or --version"),
-    "Usage: render-venn.mjs --version | <spec.json>"
-  );
-}
-
-// src/main.mjs
-process.exitCode = await main();
-
 // src/typography.mjs
 var import_opentype = __toESM(require_opentype(), 1);
-import { readFile as readFile2 } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 // src/constants.mjs
+var DIAGRAM_FONT_SIZE = 28;
 var LINE_HEIGHT_RATIO = 1.2;
+var LABEL_PADDING = 8;
 var TEXT_WIDTH_SAFETY = 1.02;
 var TEXT_WIDTH_SAFETY_PX = 1;
+var STROKE_WIDTH = 3;
+var CANVAS_PADDING = 24;
 var MAX_LINE_EM = 14;
 
 // src/typography.mjs
@@ -16660,7 +16666,7 @@ async function loadFonts({ regular, bold }) {
   let buffers;
   let fonts;
   try {
-    buffers = await Promise.all([readFile2(regular), readFile2(bold)]);
+    buffers = await Promise.all([readFile(regular), readFile(bold)]);
     fonts = buffers.map((buffer) => import_opentype.default.parse(
       buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
     ));
@@ -16743,6 +16749,689 @@ function wrapCandidates(text, bold, fontSize, fonts) {
   });
   return candidates.map(({ imbalance, phraseScore, ...candidate }) => candidate);
 }
+
+// src/geometry.mjs
+function squaredDistance(x1, y1, x2, y2) {
+  return (x1 - x2) ** 2 + (y1 - y2) ** 2;
+}
+function includesCircle(regionKey, circle) {
+  return regionKey.includes(circle.id);
+}
+function boxFitsRegion(box, regionKey, circles, padding = 0) {
+  const left = box.x;
+  const right = box.x + box.width;
+  const top = box.y;
+  const bottom = box.y + box.height;
+  for (const circle of circles) {
+    const required = includesCircle(regionKey, circle);
+    const radius = circle.r + (required ? -padding : padding);
+    if (required) {
+      if (radius < 0) return false;
+      for (const x of [left, right]) {
+        for (const y of [top, bottom]) {
+          if (squaredDistance(x, y, circle.cx, circle.cy) > radius ** 2) return false;
+        }
+      }
+    } else {
+      const nearestX = Math.max(left, Math.min(circle.cx, right));
+      const nearestY = Math.max(top, Math.min(circle.cy, bottom));
+      if (squaredDistance(nearestX, nearestY, circle.cx, circle.cy) < radius ** 2) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+function regionPointBounds(regionKey, circles, padding = 0) {
+  const boundaries = circles.map((circle) => ({
+    cx: circle.cx,
+    cy: circle.cy,
+    r: circle.r + (includesCircle(regionKey, circle) ? -padding : padding),
+    required: includesCircle(regionKey, circle)
+  }));
+  const points = [];
+  for (const circle of boundaries) {
+    if (circle.r < 0) return null;
+    points.push(
+      { x: circle.cx - circle.r, y: circle.cy },
+      { x: circle.cx + circle.r, y: circle.cy },
+      { x: circle.cx, y: circle.cy - circle.r },
+      { x: circle.cx, y: circle.cy + circle.r }
+    );
+  }
+  for (let i = 0; i < boundaries.length; i += 1) {
+    for (let j = i + 1; j < boundaries.length; j += 1) {
+      const first = boundaries[i];
+      const second = boundaries[j];
+      const dx = second.cx - first.cx;
+      const dy = second.cy - first.cy;
+      const distance = Math.hypot(dx, dy);
+      if (distance === 0 || distance > first.r + second.r || distance < Math.abs(first.r - second.r)) continue;
+      const along = (first.r ** 2 - second.r ** 2 + distance ** 2) / (2 * distance);
+      const perpendicular = Math.sqrt(Math.max(0, first.r ** 2 - along ** 2));
+      const x = first.cx + along * dx / distance;
+      const y = first.cy + along * dy / distance;
+      points.push(
+        { x: x - perpendicular * dy / distance, y: y + perpendicular * dx / distance },
+        { x: x + perpendicular * dy / distance, y: y - perpendicular * dx / distance }
+      );
+    }
+  }
+  const epsilon = 1e-7;
+  const valid = points.filter((point) => boundaries.every((circle) => {
+    const distance = Math.hypot(point.x - circle.cx, point.y - circle.cy);
+    return circle.required ? distance <= circle.r + epsilon : distance >= circle.r - epsilon;
+  }));
+  if (!valid.length) return null;
+  return {
+    minX: Math.min(...valid.map(({ x }) => x)),
+    maxX: Math.max(...valid.map(({ x }) => x)),
+    minY: Math.min(...valid.map(({ y }) => y)),
+    maxY: Math.max(...valid.map(({ y }) => y))
+  };
+}
+
+// src/layout.mjs
+var TWO_LIMITS = Object.freeze({
+  minRadius: 180,
+  maxRadius: 640,
+  radiusStep: 8,
+  minRatio: 0.8,
+  maxRatio: 1.45,
+  ratioStep: 0.025,
+  gridRule: "max(4, radius / 40)"
+});
+var THREE_LIMITS = Object.freeze({
+  minRadius: 200,
+  maxRadius: 720,
+  radiusStep: 8,
+  minRatio: 0.72,
+  maxRatio: 1.25,
+  ratioStep: 0.025,
+  gridRule: "max(4, radius / 40)"
+});
+function ratioCount(limits) {
+  return Math.floor((limits.maxRatio - limits.minRatio) / limits.ratioStep + 1e-9);
+}
+function labelsInOrder(spec) {
+  return [
+    ...spec.sets.map((set) => ({ key: set.id, text: set.label, bold: set.bold })),
+    ...[...spec.overlaps].map(([key, overlap]) => ({ key, ...overlap }))
+  ];
+}
+function twoCircles(radius, distance, style) {
+  return ["a", "b"].map((id, index) => {
+    const fill = style.colors[id];
+    return {
+      id,
+      cx: (index === 0 ? -1 : 1) * distance / 2,
+      cy: 0,
+      r: radius,
+      fill,
+      stroke: outlineColor(parseColor(fill))
+    };
+  });
+}
+function threeCircles(radius, distance, style) {
+  const positions = [
+    { id: "a", cx: -distance / 2, cy: -distance / (2 * Math.sqrt(3)) },
+    { id: "b", cx: distance / 2, cy: -distance / (2 * Math.sqrt(3)) },
+    { id: "c", cx: 0, cy: distance / Math.sqrt(3) }
+  ];
+  return positions.map((position) => {
+    const fill = style.colors[position.id];
+    return { ...position, r: radius, fill, stroke: outlineColor(parseColor(fill)) };
+  });
+}
+function centerBounds(key, circles, width, height, margin) {
+  if (circles.length === 3) {
+    const bounds = regionPointBounds(key, circles, margin);
+    if (!bounds) return null;
+    return {
+      minX: bounds.minX + width / 2,
+      maxX: bounds.maxX - width / 2,
+      minY: bounds.minY + height / 2,
+      maxY: bounds.maxY - height / 2
+    };
+  }
+  const [a, b] = circles;
+  const r = a.r - margin;
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const mid = (a.cx + b.cx) / 2;
+  if (key === "a") {
+    return {
+      minX: a.cx - r + halfWidth,
+      maxX: Math.min(a.cx + r - halfWidth, mid - halfWidth),
+      minY: -r + halfHeight,
+      maxY: r - halfHeight
+    };
+  }
+  if (key === "b") {
+    return {
+      minX: Math.max(b.cx - r + halfWidth, mid + halfWidth),
+      maxX: b.cx + r - halfWidth,
+      minY: -r + halfHeight,
+      maxY: r - halfHeight
+    };
+  }
+  const lensHalfHeight = Math.sqrt(Math.max(0, r ** 2 - (b.cx - a.cx) ** 2 / 4));
+  return {
+    minX: b.cx - r + halfWidth,
+    maxX: a.cx + r - halfWidth,
+    minY: -lensHalfHeight + halfHeight,
+    maxY: lensHalfHeight - halfHeight
+  };
+}
+function preferredAnchor(key, circles) {
+  if (circles.length === 3) {
+    if (key.length === 3) return { x: 0, y: 0 };
+    if (key.length === 1) {
+      const circle = circles.find(({ id }) => id === key);
+      const length2 = Math.hypot(circle.cx, circle.cy);
+      return {
+        x: circle.cx + circle.r * 0.45 * circle.cx / length2,
+        y: circle.cy + circle.r * 0.45 * circle.cy / length2
+      };
+    }
+    const included = circles.filter(({ id }) => key.includes(id));
+    const excluded = circles.find(({ id }) => !key.includes(id));
+    const midpoint = {
+      x: (included[0].cx + included[1].cx) / 2,
+      y: (included[0].cy + included[1].cy) / 2
+    };
+    const dx = midpoint.x - excluded.cx;
+    const dy = midpoint.y - excluded.cy;
+    const length = Math.hypot(dx, dy);
+    const offset = Math.max(0, included[0].r - length + included[0].r * 0.18);
+    return { x: midpoint.x + offset * dx / length, y: midpoint.y + offset * dy / length };
+  }
+  const [a, b] = circles;
+  const distance = b.cx - a.cx;
+  if (key === "a") return { x: a.cx - a.r + distance / 2, y: 0 };
+  if (key === "b") return { x: b.cx + b.r - distance / 2, y: 0 };
+  return { x: (a.cx + b.cx) / 2, y: 0 };
+}
+function findBox(key, candidate, circles, grid) {
+  const { width, height } = candidate;
+  const bounds = centerBounds(key, circles, width, height, LABEL_PADDING);
+  if (!bounds || bounds.minX > bounds.maxX || bounds.minY > bounds.maxY) return null;
+  const anchor = preferredAnchor(key, circles);
+  const asBox = (x, y) => ({ x: x - width / 2, y: y - height / 2, width, height });
+  if (anchor.x >= bounds.minX && anchor.x <= bounds.maxX && anchor.y >= bounds.minY && anchor.y <= bounds.maxY) {
+    const box = asBox(anchor.x, anchor.y);
+    if (boxFitsRegion(box, key, circles, LABEL_PADDING)) return box;
+  }
+  const minIx = Math.ceil((bounds.minX - anchor.x) / grid);
+  const maxIx = Math.floor((bounds.maxX - anchor.x) / grid);
+  const minIy = Math.ceil((bounds.minY - anchor.y) / grid);
+  const maxIy = Math.floor((bounds.maxY - anchor.y) / grid);
+  let best = null;
+  let bestDistance = Infinity;
+  for (let ix = minIx; ix <= maxIx; ix += 1) {
+    const x = anchor.x + ix * grid;
+    for (let iy = minIy; iy <= maxIy; iy += 1) {
+      const distance = ix ** 2 + iy ** 2;
+      if (distance >= bestDistance) continue;
+      const y = anchor.y + iy * grid;
+      const box = asBox(x, y);
+      if (boxFitsRegion(box, key, circles, LABEL_PADDING)) {
+        best = box;
+        bestDistance = distance;
+      }
+    }
+  }
+  return best;
+}
+function preparedLabels(spec, fonts) {
+  return labelsInOrder(spec).map((label) => {
+    try {
+      return { ...label, candidates: wrapCandidates(label.text, label.bold, DIAGRAM_FONT_SIZE, fonts) };
+    } catch (error) {
+      if (!(error instanceof TypographyError) || error.code !== "LABEL_TOO_LONG") throw error;
+      return { ...label, candidates: [] };
+    }
+  });
+}
+function maximumFitWidth(key, setCount) {
+  if (setCount === 3) {
+    const r2 = THREE_LIMITS.maxRadius;
+    let width = 0;
+    for (let ratioIndex = 0; ratioIndex <= ratioCount(THREE_LIMITS); ratioIndex += 1) {
+      const distance = (THREE_LIMITS.minRatio + ratioIndex * THREE_LIMITS.ratioStep) * r2;
+      const circles = threeCircles(r2, distance, { colors: { a: "#000000", b: "#000000", c: "#000000" } });
+      const bounds = regionPointBounds(key, circles, LABEL_PADDING);
+      if (bounds) width = Math.max(width, bounds.maxX - bounds.minX);
+    }
+    return Math.min(DIAGRAM_FONT_SIZE * MAX_LINE_EM, Math.floor(width));
+  }
+  const r = TWO_LIMITS.maxRadius;
+  const d = TWO_LIMITS.maxRatio * r;
+  const geometric = key === "ab" ? 2 * r - TWO_LIMITS.minRatio * r - 2 * LABEL_PADDING : d - 2 * LABEL_PADDING;
+  return Math.min(DIAGRAM_FONT_SIZE * MAX_LINE_EM, Math.floor(geometric));
+}
+function revisionRegion(label, fonts, setCount) {
+  const explicitLines = label.text.split("\n");
+  const widest = explicitLines.map((line) => ({
+    line,
+    width: measureLine(line, label.bold, DIAGRAM_FONT_SIZE, fonts)
+  })).reduce((first, second) => second.width > first.width ? second : first);
+  const measuredWidth = widest.width;
+  const maxFitWidth = maximumFitWidth(label.key, setCount);
+  const characters = [...widest.line.replace(/\s+/gu, "")].length;
+  const averageGlyphWidth = Math.max(1, measuredWidth / Math.max(1, characters));
+  const upper = Math.max(1, Math.floor(maxFitWidth / averageGlyphWidth));
+  return {
+    key: label.key,
+    measuredWidth,
+    maxFitWidth,
+    targetChars: [Math.max(1, Math.floor(upper * 0.75)), upper]
+  };
+}
+function needsRevision(labels, spec, fonts) {
+  const setCount = spec.sets.length;
+  const limits = setCount === 3 ? THREE_LIMITS : TWO_LIMITS;
+  const makeCircles = setCount === 3 ? threeCircles : twoCircles;
+  const radius = limits.maxRadius;
+  const grid = Math.max(4, radius / 40);
+  const limiting = labels.filter((label) => {
+    if (!label.candidates.length) return true;
+    for (let ratioIndex = 0; ratioIndex <= ratioCount(limits); ratioIndex += 1) {
+      const ratio = limits.minRatio + ratioIndex * limits.ratioStep;
+      const circles = makeCircles(radius, ratio * radius, spec.style);
+      if (label.candidates.some((candidate) => findBox(label.key, candidate, circles, grid))) {
+        return false;
+      }
+    }
+    return true;
+  });
+  return {
+    status: "needs_revision",
+    regions: (limiting.length ? limiting : labels).map((label) => revisionRegion(label, fonts, setCount)),
+    attemptedLimits: limits
+  };
+}
+function compareScores(first, second) {
+  if (first.area !== second.area) return first.area - second.area;
+  if (first.ratioDeviation !== second.ratioDeviation) {
+    return first.ratioDeviation - second.ratioDeviation;
+  }
+  for (let i = 0; i < first.wrapRanks.length; i += 1) {
+    if (first.wrapRanks[i] !== second.wrapRanks[i]) {
+      return first.wrapRanks[i] - second.wrapRanks[i];
+    }
+  }
+  for (let i = 0; i < first.coordinates.length; i += 1) {
+    if (first.coordinates[i] !== second.coordinates[i]) {
+      return first.coordinates[i] - second.coordinates[i];
+    }
+  }
+  return 0;
+}
+function layoutThree(spec, labels) {
+  for (let radius = THREE_LIMITS.minRadius; radius <= THREE_LIMITS.maxRadius; radius += THREE_LIMITS.radiusStep) {
+    let best = null;
+    for (let ratioIndex = 0; ratioIndex <= ratioCount(THREE_LIMITS); ratioIndex += 1) {
+      const ratio = THREE_LIMITS.minRatio + ratioIndex * THREE_LIMITS.ratioStep;
+      const circles = threeCircles(radius, ratio * radius, spec.style);
+      const inset = CANVAS_PADDING + STROKE_WIDTH / 2;
+      const width = 2 * radius + ratio * radius + 2 * inset;
+      const height = 2 * radius + Math.sqrt(3) * ratio * radius / 2 + 2 * inset;
+      const area = width * height;
+      if (best && area > best.score.area) break;
+      const grid = Math.max(4, radius / 40);
+      const placed = [];
+      const wrapRanks = [];
+      for (const label of labels) {
+        let chosen = null;
+        for (let rank = 0; rank < label.candidates.length; rank += 1) {
+          const candidate = label.candidates[rank];
+          const box = findBox(label.key, candidate, circles, grid);
+          if (box) {
+            chosen = {
+              key: label.key,
+              text: label.text,
+              bold: label.bold,
+              lines: candidate.lines,
+              fontSize: candidate.fontSize,
+              lineHeight: candidate.lineHeight,
+              box
+            };
+            wrapRanks.push(rank);
+            break;
+          }
+        }
+        if (!chosen) break;
+        placed.push(chosen);
+      }
+      if (placed.length !== labels.length) continue;
+      const score = {
+        area,
+        ratioDeviation: Math.abs(ratio - 0.92),
+        wrapRanks,
+        coordinates: placed.flatMap(({ box }) => [box.x, box.y])
+      };
+      if (!best || compareScores(score, best.score) < 0) best = { circles, placed, score };
+    }
+    if (best) return finalLayout(best.circles, best.placed, spec);
+  }
+  return null;
+}
+function finalLayout(circles, labels, spec) {
+  const inset = CANVAS_PADDING + STROKE_WIDTH / 2;
+  const minX = Math.min(...circles.map((circle) => circle.cx - circle.r));
+  const minY = Math.min(...circles.map((circle) => circle.cy - circle.r));
+  const maxX = Math.max(...circles.map((circle) => circle.cx + circle.r));
+  const maxY = Math.max(...circles.map((circle) => circle.cy + circle.r));
+  const shiftX = inset - minX;
+  const shiftY = inset - minY;
+  return {
+    width: maxX - minX + 2 * inset,
+    height: maxY - minY + 2 * inset,
+    circles: circles.map((circle) => ({ ...circle, cx: circle.cx + shiftX, cy: circle.cy + shiftY })),
+    labels: labels.map((label) => ({
+      ...label,
+      box: { ...label.box, x: label.box.x + shiftX, y: label.box.y + shiftY }
+    })),
+    background: spec.style.background,
+    opacity: spec.style.opacity,
+    warnings: []
+  };
+}
+function layoutDiagram(spec, fonts) {
+  if (spec.sets.length !== 2 && spec.sets.length !== 3) {
+    throw new RangeError("layout supports exactly two or three sets");
+  }
+  const labels = preparedLabels(spec, fonts);
+  if (labels.some((label) => label.candidates.length === 0)) {
+    return needsRevision(labels, spec, fonts);
+  }
+  if (spec.sets.length === 3) return layoutThree(spec, labels) ?? needsRevision(labels, spec, fonts);
+  for (let radius = TWO_LIMITS.minRadius; radius <= TWO_LIMITS.maxRadius; radius = Math.min(radius + TWO_LIMITS.radiusStep, TWO_LIMITS.maxRadius)) {
+    for (let ratioIndex = 0; ratioIndex <= 26; ratioIndex += 1) {
+      const ratio = TWO_LIMITS.minRatio + ratioIndex * TWO_LIMITS.ratioStep;
+      const circles = twoCircles(radius, ratio * radius, spec.style);
+      const grid = Math.max(4, radius / 40);
+      const placed = [];
+      for (const label of labels) {
+        let chosen = null;
+        for (const candidate of label.candidates) {
+          const box = findBox(label.key, candidate, circles, grid);
+          if (box) {
+            chosen = {
+              key: label.key,
+              text: label.text,
+              bold: label.bold,
+              lines: candidate.lines,
+              fontSize: candidate.fontSize,
+              lineHeight: candidate.lineHeight,
+              box
+            };
+            break;
+          }
+        }
+        if (chosen) {
+          placed.push(chosen);
+        } else break;
+      }
+      if (placed.length === labels.length) {
+        return finalLayout(circles, placed, spec);
+      }
+    }
+    if (radius === TWO_LIMITS.maxRadius) break;
+  }
+  return needsRevision(labels, spec, fonts);
+}
+
+// src/svg.mjs
+var escapeXml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&apos;"
+})[character]);
+var number = (value) => String(Number(value.toFixed(3)));
+function labelBaseline(label, font) {
+  const scale = label.fontSize / font.unitsPerEm;
+  const ascent = font.ascender * scale;
+  const descent = font.descender * scale;
+  const blockHeight = ascent - descent + (label.lines.length - 1) * label.lineHeight;
+  return label.box.y + label.box.height / 2 - blockHeight / 2 + ascent;
+}
+function serializeSvg(layout, fonts, accessibility) {
+  const { width, height, circles, labels, background, opacity } = layout;
+  const circleColors = new Map(circles.map((circle) => [circle.id, parseColor(circle.fill)]));
+  const backgrounds = labels.map((label) => regionBackground(
+    label.key,
+    circleColors,
+    opacity,
+    parseColor(background)
+  ));
+  const textColor = chooseGlobalTextColor(backgrounds).color;
+  const fontData = fonts.buffers.map((buffer, index) => `@font-face { font-family: 'Noto Sans'; font-weight: ${index ? 700 : 400}; src: url(data:font/ttf;base64,${buffer.toString("base64")}) format('truetype'); }`);
+  const parts = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${number(width)}" height="${number(height)}" viewBox="0 0 ${number(width)} ${number(height)}" role="img" aria-labelledby="venn-title venn-desc">`,
+    `<title id="venn-title">${escapeXml(accessibility.title)}</title>`,
+    `<desc id="venn-desc">${escapeXml(accessibility.description)}</desc>`,
+    `<style>${fontData.join("\n")}</style>`,
+    `<rect x="0" y="0" width="${number(width)}" height="${number(height)}" fill="${escapeXml(background)}"/>`
+  ];
+  for (const circle of circles) {
+    parts.push(`<circle data-set="${escapeXml(circle.id)}" cx="${number(circle.cx)}" cy="${number(circle.cy)}" r="${number(circle.r)}" fill="${escapeXml(circle.fill)}" fill-opacity="${opacity}" stroke="${escapeXml(circle.stroke)}" stroke-width="${STROKE_WIDTH}"/>`);
+  }
+  for (const label of labels) {
+    const x = number(label.box.x + label.box.width / 2);
+    const font = label.bold ? fonts.bold : fonts.regular;
+    const y = number(labelBaseline(label, font));
+    const rows = label.lines.map((line, index) => `<tspan x="${x}" dy="${index ? number(label.lineHeight) : 0}">${escapeXml(line)}</tspan>`).join("");
+    parts.push(`<text data-region="${escapeXml(label.key)}" x="${x}" y="${y}" font-family="Noto Sans" font-size="${number(label.fontSize)}" font-weight="${label.bold ? 700 : 400}" text-anchor="middle" fill="${textColor}">${rows}</text>`);
+  }
+  parts.push("</svg>");
+  return `${parts.join("\n")}
+`;
+}
+
+// src/output.mjs
+import { mkdir, open, rename, stat, unlink } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { randomUUID } from "node:crypto";
+var owned = /* @__PURE__ */ new Map();
+var overwriteAllowed = /* @__PURE__ */ new Set();
+function sameFile(first, second) {
+  return first.dev === second.dev && first.ino === second.ino;
+}
+async function reserve(path) {
+  const handle = await open(path, "wx");
+  const identity = await handle.stat();
+  let active = true;
+  let closed = false;
+  const close = async () => {
+    if (closed) return;
+    await handle.close();
+    closed = true;
+  };
+  const reservation = {
+    path,
+    async release() {
+      if (!active) return;
+      active = false;
+      owned.delete(path);
+      await close();
+      try {
+        if (sameFile(await stat(path), identity)) await unlink(path);
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+    },
+    async prepareCommit() {
+      if (!active) throw new Error(`output reservation is no longer active: ${path}`);
+      if (!sameFile(await stat(path), identity)) {
+        throw new Error(`output reservation changed: ${path}`);
+      }
+      await close();
+    },
+    finishCommit() {
+      active = false;
+      owned.delete(path);
+    }
+  };
+  owned.set(path, reservation);
+  return reservation;
+}
+async function reserveOutputPair(output) {
+  await mkdir(output.directory, { recursive: true });
+  for (let suffix = 1; ; suffix += 1) {
+    const basename = suffix === 1 ? output.basename : `${output.basename}-${suffix}`;
+    const svgPath = join(output.directory, `${basename}.svg`);
+    const pngPath = join(output.directory, `${basename}.png`);
+    if (output.overwrite) {
+      overwriteAllowed.add(svgPath);
+      overwriteAllowed.add(pngPath);
+      return {
+        svgPath,
+        pngPath,
+        svgReservation: { path: svgPath, release: async () => {
+          overwriteAllowed.delete(svgPath);
+        } },
+        pngReservation: { path: pngPath, release: async () => {
+          overwriteAllowed.delete(pngPath);
+        } }
+      };
+    }
+    let svgReservation;
+    try {
+      svgReservation = await reserve(svgPath);
+      const pngReservation = await reserve(pngPath);
+      return { svgPath, pngPath, svgReservation, pngReservation };
+    } catch (error) {
+      if (svgReservation) await svgReservation.release();
+      if (error.code === "EEXIST") continue;
+      throw error;
+    }
+  }
+}
+async function atomicWrite(path, bytes) {
+  const reservation = owned.get(path);
+  if (!reservation && !overwriteAllowed.has(path)) {
+    throw new Error(`output path has not been reserved: ${path}`);
+  }
+  const tempPath = join(dirname(path), `.${randomUUID()}.venn-tmp`);
+  let handle;
+  try {
+    handle = await open(tempPath, "wx");
+    await handle.writeFile(bytes);
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    if (reservation) await reservation.prepareCommit();
+    await rename(tempPath, path);
+    if (reservation) reservation.finishCommit();
+    overwriteAllowed.delete(path);
+  } catch (error) {
+    const cleanupErrors = [];
+    if (handle) {
+      try {
+        await handle.close();
+      } catch (cleanupError) {
+        cleanupErrors.push(cleanupError);
+      }
+    }
+    try {
+      await unlink(tempPath);
+    } catch (cleanupError) {
+      if (cleanupError.code !== "ENOENT") cleanupErrors.push(cleanupError);
+    }
+    if (reservation) {
+      try {
+        await reservation.release();
+      } catch (cleanupError) {
+        cleanupErrors.push(cleanupError);
+      }
+    }
+    if (cleanupErrors.length) error.cleanupErrors = cleanupErrors;
+    throw error;
+  }
+}
+
+// src/cli.mjs
+var RENDERER_INFO = Object.freeze({
+  name: "venn-diagram-skill",
+  rendererVersion: "0.1.0",
+  schemaVersion: 1
+});
+function reportError(error, debugMessage = error.stack ?? String(error)) {
+  const detail = error instanceof SpecError ? error : new SpecError("INPUT_ERROR", "$", "unable to read specification file");
+  process.stdout.write(`${JSON.stringify({
+    status: "error",
+    error: { code: detail.code, path: detail.path, message: detail.message }
+  })}
+`);
+  process.stderr.write(`${debugMessage}
+`);
+  return 1;
+}
+async function main(argv = process.argv.slice(2)) {
+  if (argv.length === 1 && argv[0] === "--version") {
+    process.stdout.write(`${JSON.stringify(RENDERER_INFO)}
+`);
+    return 0;
+  }
+  if (argv.length === 1 && !argv[0].startsWith("-")) {
+    const specPath = resolve2(argv[0]);
+    try {
+      const source = await readFile2(specPath, "utf8");
+      let raw;
+      try {
+        raw = JSON.parse(source);
+      } catch (error) {
+        throw new SpecError("INVALID_JSON", "$", `invalid JSON: ${error.message}`);
+      }
+      const spec = normalizeSpec(raw, process.cwd());
+      const fonts = await loadFonts({
+        regular: new URL("../vendor/fonts/NotoSans-Regular.ttf", import.meta.url),
+        bold: new URL("../vendor/fonts/NotoSans-Bold.ttf", import.meta.url)
+      });
+      const layout = layoutDiagram(spec, fonts);
+      if (layout.status === "needs_revision") {
+        process.stdout.write(`${JSON.stringify(layout)}
+`);
+        return 2;
+      }
+      const svg = serializeSvg(layout, fonts, spec.accessibility);
+      let output;
+      try {
+        output = await reserveOutputPair(spec.output);
+        await atomicWrite(output.svgPath, svg);
+        await output.pngReservation.release();
+      } catch (error) {
+        if (output) {
+          await output.svgReservation.release();
+          await output.pngReservation.release();
+        }
+        throw new SpecError("OUTPUT_ERROR", "output", `unable to write output: ${error.message}`);
+      }
+      process.stdout.write(`${JSON.stringify({
+        status: "incomplete",
+        svg: { path: output.svgPath, status: "written" },
+        png: { path: null, plannedPath: output.pngPath, status: "pending" },
+        message: "SVG written; PNG rendering is pending"
+      })}
+`);
+      return 1;
+    } catch (error) {
+      return reportError(error);
+    }
+  }
+  return reportError(
+    new SpecError("INVALID_ARGUMENTS", "argv", "expected one specification JSON path or --version"),
+    "Usage: render-venn.mjs --version | <spec.json>"
+  );
+}
+
+// src/main.mjs
+process.exitCode = await main();
 export {
   loadFonts,
   measureLine,
