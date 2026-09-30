@@ -13,7 +13,7 @@ Write a schema version 1 JSON file in the requested output directory or a secure
 
 Each `sets[].label` is the **one embedded label in that set's exclusive region**. When the user supplies both a set name and exclusive content, preserve the wording in that one label with a line break, such as `"Product\nCustomer priorities"`; do not place the set name outside the circles or add a separate text pill. When only a set name is supplied, use that name alone. Apply this rule to `a` and `b` in two-set diagrams and to `a`, `b`, and `c` in three-set diagrams. All these labels still share the diagram-wide font size and text color; `bold` applies to the whole combined label only if explicitly requested.
 
-Translate color descriptions to solid CSS color names or `#RGB`/`#RRGGBB` hex values. The defaults are blue `#2563EB`, amber `#F59E0B`, teal `#14B8A6`, opacity `0.55`, and white `#FFFFFF` background. Do not turn qualitative relationships into measured areas.
+Translate color descriptions to solid CSS color names or `#RGB`/`#RRGGBB` hex values. The defaults are blue `#2563EB`, amber `#F59E0B`, teal `#14B8A6`, opacity `0.55`, and white `#FFFFFF` background. The renderer chooses one global pure black `#000000` or pure white `#FFFFFF` text color for all visible labels. Do not turn qualitative relationships into measured areas.
 
 This is the complete two-set schema example; replace its labels and output directory for the request:
 
@@ -58,7 +58,7 @@ node "$SKILL_DIR/scripts/render-venn.mjs" "$SPEC_PATH"
 Here `SKILL_DIR` is the absolute directory containing this loaded `SKILL.md`, and `SPEC_PATH` is the absolute JSON path. Use the bundled renderer; do not draw SVG by hand or depend on host fonts, browsers, Python, or a system SVG converter. Parse its single JSON stdout report and check the exit code.
 
 - Exit 0 with `status: "ok"` or `"warning"` means a complete pair. Inspect the SVG and PNG, check both reported paths exist, review layout and wording, and convey any report warnings. Return both paths.
-- Exit 2 with `status: "needs_revision"` means a label does not fit. Use the reported limiting region and target length to propose a shorter phrase that preserves its meaning. Revise the JSON and rerender once the wording is settled. Do not shrink the shared font size, clip, or truncate the label.
+- Exit 2 with `status: "needs_revision"` means a label does not fit. Use the reported limiting region and fit diagnostics to propose shorter wording while preserving the original phrase's named semantic anchors. Disclose any material meaning lost in compression. If essential dimensions cannot all fit, offer the closest concise options and identify their tradeoffs instead of claiming equivalence. Revise the JSON and rerender once the wording is settled. Do not shrink the shared font size, clip, or truncate the label.
 - Exit 1 with `status: "error"` means the pair is incomplete or the input is invalid. Use the report's error code and path to correct the input or explain the failure. Never claim completion when either output is missing.
 
 Before handing off, state material semantic assumptions and remind the user that overlap areas are illustrative rather than quantitative.

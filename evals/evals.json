@@ -11,6 +11,7 @@
         "The agent discloses the assumption behind the developed ab wording and does not imply measured quantities.",
         "Both SVG and PNG exist with a solid white background; the PNG longest side is 1600 pixels.",
         "The SVG has exactly two equal-radius circles and region labels only for a, b, and ab.",
+        "The two circles use the exact default fills #2563EB and #F59E0B at opacity 0.55.",
         "All visible labels share one font size and one text color; no label is bold."
       ]
     },
@@ -60,8 +61,8 @@
       "expected_output": "An observed needs_revision loop followed by a completed two-set pair using a concise, disclosed overlap phrase.",
       "files": [],
       "expectations": [
-        "The first renderer invocation exits 2 with status needs_revision and a limiting ab region; the agent reports that result.",
-        "The agent proposes and uses a shorter overlap phrase that preserves the original meaning rather than shrinking, clipping, or truncating the label.",
+        "The first actual invocation of scripts/render-venn.mjs exits 2 and emits a structured status needs_revision report with limiting region key ab and fit diagnostics including measuredWidth, maxFitWidth, targetChars, and attemptedLimits; the agent shows that evidence.",
+        "The proposed shorter overlap phrase preserves the named semantic anchors: continuous synthesis, qualitative and quantitative inputs, and executable, resourced, validated strategic decisions. If any anchor cannot fit, the agent explicitly names what is lost and offers the closest concise options; a generic phrase such as Evidence-backed action alone does not satisfy this expectation. The label is not shrunk, clipped, or truncated.",
         "A subsequent invocation produces both SVG and PNG with a solid white background and PNG longest side 1600 pixels.",
         "The final SVG has exactly two equal-radius circles and labels only a, b, and ab.",
         "All final visible labels share one font size and one text color; no label is bold."
@@ -77,7 +78,8 @@
         "Both SVG and PNG exist with a solid white background and PNG longest side 1600 pixels.",
         "The SVG has exactly three equal-radius circles with the requested black, black, and silver colors at 0.55 opacity.",
         "All visible labels share one font size and the global #000000 text color; no label is bold.",
-        "The report has status warning with LOW_CONTRAST and minimum contrast near 4.43 from labeled a, b, and c regions; counting the unlabeled ab overlap would incorrectly lower it near 1.69.",
+        "An independent artifact-level contrast calculation from the actual SVG/PNG fills, opacity, background, and labeled a, b, and c regions yields near 4.43; incorrectly including unlabeled ab would lower it near 1.69.",
+        "The bundled renderer's structured JSON report has status warning, a LOW_CONTRAST warning, and minimumContrast near 4.43 based on labeled regions only.",
         "The agent conveys the contrast warning and does not claim quantitative areas."
       ]
     }
