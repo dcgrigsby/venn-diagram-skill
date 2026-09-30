@@ -1,7 +1,7 @@
 import {
   CANVAS_PADDING, DIAGRAM_FONT_SIZE, LABEL_PADDING, MAX_LINE_EM, STROKE_WIDTH,
 } from './constants.mjs';
-import { boxFitsRegion } from './geometry.mjs';
+import { boxFitsRegion, regionPointBounds } from './geometry.mjs';
 import { outlineColor, parseColor } from './color.mjs';
 import { measureLine, TypographyError, wrapCandidates } from './typography.mjs';
 
@@ -14,6 +14,19 @@ const TWO_LIMITS = Object.freeze({
   ratioStep: 0.025,
   gridRule: 'max(4, radius / 40)',
 });
+const THREE_LIMITS = Object.freeze({
+  minRadius: 200,
+  maxRadius: 720,
+  radiusStep: 8,
+  minRatio: 0.72,
+  maxRatio: 1.25,
+  ratioStep: 0.025,
+  gridRule: 'max(4, radius / 40)',
+});
+
+function ratioCount(limits) {
+  return Math.floor((limits.maxRatio - limits.minRatio) / limits.ratioStep + 1e-9);
+}
 
 function labelsInOrder(spec) {
   return [
@@ -36,7 +49,29 @@ function twoCircles(radius, distance, style) {
   });
 }
 
+function threeCircles(radius, distance, style) {
+  const positions = [
+    { id: 'a', cx: -distance / 2, cy: -distance / (2 * Math.sqrt(3)) },
+    { id: 'b', cx: distance / 2, cy: -distance / (2 * Math.sqrt(3)) },
+    { id: 'c', cx: 0, cy: distance / Math.sqrt(3) },
+  ];
+  return positions.map((position) => {
+    const fill = style.colors[position.id];
+    return { ...position, r: radius, fill, stroke: outlineColor(parseColor(fill)) };
+  });
+}
+
 function centerBounds(key, circles, width, height, margin) {
+  if (circles.length === 3) {
+    const bounds = regionPointBounds(key, circles, margin);
+    if (!bounds) return null;
+    return {
+      minX: bounds.minX + width / 2,
+      maxX: bounds.maxX - width / 2,
+      minY: bounds.minY + height / 2,
+      maxY: bounds.maxY - height / 2,
+    };
+  }
   const [a, b] = circles;
   const r = a.r - margin;
   const halfWidth = width / 2;
@@ -68,6 +103,28 @@ function centerBounds(key, circles, width, height, margin) {
 }
 
 function preferredAnchor(key, circles) {
+  if (circles.length === 3) {
+    if (key.length === 3) return { x: 0, y: 0 };
+    if (key.length === 1) {
+      const circle = circles.find(({ id }) => id === key);
+      const length = Math.hypot(circle.cx, circle.cy);
+      return {
+        x: circle.cx + circle.r * 0.45 * circle.cx / length,
+        y: circle.cy + circle.r * 0.45 * circle.cy / length,
+      };
+    }
+    const included = circles.filter(({ id }) => key.includes(id));
+    const excluded = circles.find(({ id }) => !key.includes(id));
+    const midpoint = {
+      x: (included[0].cx + included[1].cx) / 2,
+      y: (included[0].cy + included[1].cy) / 2,
+    };
+    const dx = midpoint.x - excluded.cx;
+    const dy = midpoint.y - excluded.cy;
+    const length = Math.hypot(dx, dy);
+    const offset = Math.max(0, included[0].r - length + included[0].r * 0.18);
+    return { x: midpoint.x + offset * dx / length, y: midpoint.y + offset * dy / length };
+  }
   const [a, b] = circles;
   const distance = b.cx - a.cx;
   if (key === 'a') return { x: a.cx - a.r + distance / 2, y: 0 };
@@ -78,7 +135,7 @@ function preferredAnchor(key, circles) {
 function findBox(key, candidate, circles, grid) {
   const { width, height } = candidate;
   const bounds = centerBounds(key, circles, width, height, LABEL_PADDING);
-  if (bounds.minX > bounds.maxX || bounds.minY > bounds.maxY) return null;
+  if (!bounds || bounds.minX > bounds.maxX || bounds.minY > bounds.maxY) return null;
   const anchor = preferredAnchor(key, circles);
   const asBox = (x, y) => ({ x: x - width / 2, y: y - height / 2, width, height });
   if (anchor.x >= bounds.minX && anchor.x <= bounds.maxX
@@ -120,7 +177,18 @@ function preparedLabels(spec, fonts) {
   });
 }
 
-function maximumFitWidth(key) {
+function maximumFitWidth(key, setCount) {
+  if (setCount === 3) {
+    const r = THREE_LIMITS.maxRadius;
+    let width = 0;
+    for (let ratioIndex = 0; ratioIndex <= ratioCount(THREE_LIMITS); ratioIndex += 1) {
+      const distance = (THREE_LIMITS.minRatio + ratioIndex * THREE_LIMITS.ratioStep) * r;
+      const circles = threeCircles(r, distance, { colors: { a: '#000000', b: '#000000', c: '#000000' } });
+      const bounds = regionPointBounds(key, circles, LABEL_PADDING);
+      if (bounds) width = Math.max(width, bounds.maxX - bounds.minX);
+    }
+    return Math.min(DIAGRAM_FONT_SIZE * MAX_LINE_EM, Math.floor(width));
+  }
   const r = TWO_LIMITS.maxRadius;
   const d = TWO_LIMITS.maxRatio * r;
   const geometric = key === 'ab' ? 2 * r - TWO_LIMITS.minRatio * r - 2 * LABEL_PADDING
@@ -128,14 +196,14 @@ function maximumFitWidth(key) {
   return Math.min(DIAGRAM_FONT_SIZE * MAX_LINE_EM, Math.floor(geometric));
 }
 
-function revisionRegion(label, fonts) {
+function revisionRegion(label, fonts, setCount) {
   const explicitLines = label.text.split('\n');
   const widest = explicitLines.map((line) => ({
     line,
     width: measureLine(line, label.bold, DIAGRAM_FONT_SIZE, fonts),
   })).reduce((first, second) => second.width > first.width ? second : first);
   const measuredWidth = widest.width;
-  const maxFitWidth = maximumFitWidth(label.key);
+  const maxFitWidth = maximumFitWidth(label.key, setCount);
   const characters = [...widest.line.replace(/\s+/gu, '')].length;
   const averageGlyphWidth = Math.max(1, measuredWidth / Math.max(1, characters));
   const upper = Math.max(1, Math.floor(maxFitWidth / averageGlyphWidth));
@@ -148,13 +216,16 @@ function revisionRegion(label, fonts) {
 }
 
 function needsRevision(labels, spec, fonts) {
-  const radius = TWO_LIMITS.maxRadius;
+  const setCount = spec.sets.length;
+  const limits = setCount === 3 ? THREE_LIMITS : TWO_LIMITS;
+  const makeCircles = setCount === 3 ? threeCircles : twoCircles;
+  const radius = limits.maxRadius;
   const grid = Math.max(4, radius / 40);
   const limiting = labels.filter((label) => {
     if (!label.candidates.length) return true;
-    for (let ratioIndex = 0; ratioIndex <= 26; ratioIndex += 1) {
-      const ratio = TWO_LIMITS.minRatio + ratioIndex * TWO_LIMITS.ratioStep;
-      const circles = twoCircles(radius, ratio * radius, spec.style);
+    for (let ratioIndex = 0; ratioIndex <= ratioCount(limits); ratioIndex += 1) {
+      const ratio = limits.minRatio + ratioIndex * limits.ratioStep;
+      const circles = makeCircles(radius, ratio * radius, spec.style);
       if (label.candidates.some((candidate) => findBox(label.key, candidate, circles, grid))) {
         return false;
       }
@@ -163,9 +234,73 @@ function needsRevision(labels, spec, fonts) {
   });
   return {
     status: 'needs_revision',
-    regions: (limiting.length ? limiting : labels).map((label) => revisionRegion(label, fonts)),
-    attemptedLimits: TWO_LIMITS,
+    regions: (limiting.length ? limiting : labels).map((label) =>
+      revisionRegion(label, fonts, setCount)),
+    attemptedLimits: limits,
   };
+}
+
+function compareScores(first, second) {
+  if (first.area !== second.area) return first.area - second.area;
+  if (first.ratioDeviation !== second.ratioDeviation) {
+    return first.ratioDeviation - second.ratioDeviation;
+  }
+  for (let i = 0; i < first.wrapRanks.length; i += 1) {
+    if (first.wrapRanks[i] !== second.wrapRanks[i]) {
+      return first.wrapRanks[i] - second.wrapRanks[i];
+    }
+  }
+  for (let i = 0; i < first.coordinates.length; i += 1) {
+    if (first.coordinates[i] !== second.coordinates[i]) {
+      return first.coordinates[i] - second.coordinates[i];
+    }
+  }
+  return 0;
+}
+
+function layoutThree(spec, labels) {
+  for (let radius = THREE_LIMITS.minRadius; radius <= THREE_LIMITS.maxRadius;
+    radius += THREE_LIMITS.radiusStep) {
+    let best = null;
+    for (let ratioIndex = 0; ratioIndex <= ratioCount(THREE_LIMITS); ratioIndex += 1) {
+      const ratio = THREE_LIMITS.minRatio + ratioIndex * THREE_LIMITS.ratioStep;
+      const circles = threeCircles(radius, ratio * radius, spec.style);
+      const inset = CANVAS_PADDING + STROKE_WIDTH / 2;
+      const width = 2 * radius + ratio * radius + 2 * inset;
+      const height = 2 * radius + Math.sqrt(3) * ratio * radius / 2 + 2 * inset;
+      const area = width * height;
+      if (best && area > best.score.area) break;
+      const grid = Math.max(4, radius / 40);
+      const placed = [];
+      const wrapRanks = [];
+      for (const label of labels) {
+        let chosen = null;
+        for (let rank = 0; rank < label.candidates.length; rank += 1) {
+          const candidate = label.candidates[rank];
+          const box = findBox(label.key, candidate, circles, grid);
+          if (box) {
+            chosen = { key: label.key, text: label.text, bold: label.bold,
+              lines: candidate.lines, fontSize: candidate.fontSize,
+              lineHeight: candidate.lineHeight, box };
+            wrapRanks.push(rank);
+            break;
+          }
+        }
+        if (!chosen) break;
+        placed.push(chosen);
+      }
+      if (placed.length !== labels.length) continue;
+      const score = {
+        area,
+        ratioDeviation: Math.abs(ratio - 0.92),
+        wrapRanks,
+        coordinates: placed.flatMap(({ box }) => [box.x, box.y]),
+      };
+      if (!best || compareScores(score, best.score) < 0) best = { circles, placed, score };
+    }
+    if (best) return finalLayout(best.circles, best.placed, spec);
+  }
+  return null;
 }
 
 function finalLayout(circles, labels, spec) {
@@ -190,11 +325,15 @@ function finalLayout(circles, labels, spec) {
 }
 
 export function layoutDiagram(spec, fonts) {
-  if (spec.sets.length !== 2) throw new RangeError('layout supports exactly two sets');
+  if (spec.sets.length !== 2 && spec.sets.length !== 3) {
+    throw new RangeError('layout supports exactly two or three sets');
+  }
   const labels = preparedLabels(spec, fonts);
   if (labels.some((label) => label.candidates.length === 0)) {
     return needsRevision(labels, spec, fonts);
   }
+
+  if (spec.sets.length === 3) return layoutThree(spec, labels) ?? needsRevision(labels, spec, fonts);
 
   for (let radius = TWO_LIMITS.minRadius; radius <= TWO_LIMITS.maxRadius;
     radius = Math.min(radius + TWO_LIMITS.radiusStep, TWO_LIMITS.maxRadius)) {

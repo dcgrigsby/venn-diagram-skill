@@ -42,3 +42,55 @@ export function boxFitsRegion(box, regionKey, circles, padding = 0) {
   }
   return true;
 }
+
+// The extrema of a disk Boolean region occur at a cardinal point of a
+// boundary circle or at an intersection of two boundary circles.
+export function regionPointBounds(regionKey, circles, padding = 0) {
+  const boundaries = circles.map((circle) => ({
+    cx: circle.cx,
+    cy: circle.cy,
+    r: circle.r + (includesCircle(regionKey, circle) ? -padding : padding),
+    required: includesCircle(regionKey, circle),
+  }));
+  const points = [];
+  for (const circle of boundaries) {
+    if (circle.r < 0) return null;
+    points.push(
+      { x: circle.cx - circle.r, y: circle.cy },
+      { x: circle.cx + circle.r, y: circle.cy },
+      { x: circle.cx, y: circle.cy - circle.r },
+      { x: circle.cx, y: circle.cy + circle.r },
+    );
+  }
+  for (let i = 0; i < boundaries.length; i += 1) {
+    for (let j = i + 1; j < boundaries.length; j += 1) {
+      const first = boundaries[i];
+      const second = boundaries[j];
+      const dx = second.cx - first.cx;
+      const dy = second.cy - first.cy;
+      const distance = Math.hypot(dx, dy);
+      if (distance === 0 || distance > first.r + second.r
+        || distance < Math.abs(first.r - second.r)) continue;
+      const along = (first.r ** 2 - second.r ** 2 + distance ** 2) / (2 * distance);
+      const perpendicular = Math.sqrt(Math.max(0, first.r ** 2 - along ** 2));
+      const x = first.cx + along * dx / distance;
+      const y = first.cy + along * dy / distance;
+      points.push(
+        { x: x - perpendicular * dy / distance, y: y + perpendicular * dx / distance },
+        { x: x + perpendicular * dy / distance, y: y - perpendicular * dx / distance },
+      );
+    }
+  }
+  const epsilon = 1e-7;
+  const valid = points.filter((point) => boundaries.every((circle) => {
+    const distance = Math.hypot(point.x - circle.cx, point.y - circle.cy);
+    return circle.required ? distance <= circle.r + epsilon : distance >= circle.r - epsilon;
+  }));
+  if (!valid.length) return null;
+  return {
+    minX: Math.min(...valid.map(({ x }) => x)),
+    maxX: Math.max(...valid.map(({ x }) => x)),
+    minY: Math.min(...valid.map(({ y }) => y)),
+    maxY: Math.max(...valid.map(({ y }) => y)),
+  };
+}
