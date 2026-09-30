@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "sets": [
+    { "id": "a", "label": "Product" },
+    { "id": "b", "label": "Engineering" }
+  ],
+  "overlaps": {
+    "ab": { "text": "Feasible roadmap", "bold": true }
+  },
+  "style": {
+    "colors": { "a": "#2563eb", "b": "#f59e0b" },
+    "opacity": 0.55,
+    "background": "#ffffff"
+  },
+  "output": {
+    "directory": ".",
+    "basename": "product-engineering-venn",
+    "pngLongestSide": 1600,
+    "overwrite": false
+  }
+}

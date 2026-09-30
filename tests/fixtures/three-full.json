@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "sets": [
+    { "id": "a", "label": "Product" },
+    { "id": "b", "label": "Engineering" },
+    { "id": "c", "label": "Design" }
+  ],
+  "overlaps": {
+    "ab": { "text": "Feasible" },
+    "ac": { "text": "Useful" },
+    "bc": { "text": "Elegant" },
+    "abc": { "text": "Great experience", "bold": true }
+  }
+}
