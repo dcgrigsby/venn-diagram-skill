@@ -2,7 +2,7 @@
 
 ## Summary
 
-`venn-diagram-skill` is a public, cross-agent skill that creates conceptual two-set and three-set Venn diagrams from natural-language requests. It produces a content-fitted SVG and a matching transparent PNG without requiring post-install setup.
+`venn-diagram-skill` is a public, cross-agent skill that creates conceptual two-set and three-set Venn diagrams from natural-language requests. It produces a content-fitted SVG and a matching white-background PNG without requiring post-install setup.
 
 The repository will be installable through the open Skills CLI with `npx skills add dcgrigsby/venn-diagram-skill -g`. The repository, skill folder, and `SKILL.md` frontmatter name will all use `venn-diagram-skill`.
 
@@ -21,7 +21,7 @@ The repository will be installable through the open Skills CLI with `npx skills 
 - Numeric, count-based, or area-proportional diagrams.
 - Four or more sets, Euler diagrams, or UpSet plots.
 - External region labels, leader lines, titles, captions, sources, or notes.
-- Independent font sizes, weights, or colors for individual labels.
+- Partial-label rich text, italics, underlining, or independent font sizes and colors.
 - Emoji rendering or unrestricted coverage of every Unicode script.
 - A standalone end-user CLI product separate from the installed agent skill.
 
@@ -58,7 +58,7 @@ Three-set diagrams support these regions:
 - `ab`, `ac`, `bc`: the three pairwise-only overlap regions
 - `abc`: the three-way overlap
 
-Only named regions receive labels. Unnamed regions remain empty. Labels always sit directly inside their regions.
+The set labels occupy the three exclusive regions. Only named overlaps receive overlap labels; unnamed overlaps remain empty. Labels always sit directly inside their regions. Any whole set or overlap label may be bold when the user explicitly requests emphasis.
 
 ## Internal Renderer Contract
 
@@ -66,11 +66,11 @@ The agent passes a JSON file rather than shell arguments so quotes, punctuation,
 
 The specification contains:
 
-- `sets`: two or three stable set identifiers with display labels.
-- `regions`: a mapping from valid region identifiers to visible text.
+- `sets`: two or three objects with stable identifiers, display labels, and an optional whole-label `bold` flag.
+- `overlaps`: a mapping from valid overlap identifiers to objects containing visible `text` and an optional whole-label `bold` flag.
 - `style.colors`: one color per set, expressed as a validated CSS color name or hexadecimal value.
 - `style.opacity`: a numeric fill opacity greater than 0 and no greater than 1.
-- `style.background`: `transparent` by default or an explicitly requested solid color.
+- `style.background`: white (`#ffffff`) by default or an explicitly requested solid color.
 - `output.directory`: the user-requested or current output directory.
 - `output.basename`: a descriptive slug derived from the set labels unless explicitly supplied.
 - `output.pngLongestSide`: `1600` by default.
@@ -105,7 +105,7 @@ Vendoring is essential: `npx skills add` copies skill files but does not install
 
 ### Bundled typography
 
-The repository includes a pinned Noto Sans SemiBold build covering common Latin, Greek, and Cyrillic text, its Open Font License, and deterministic font measurement support. It does not rely on system fonts.
+The repository includes pinned Noto Sans Regular and Noto Sans Bold builds covering common Latin, Greek, and Cyrillic text, their Open Font License, and deterministic font measurement support. It does not rely on system fonts.
 
 The font is embedded in the SVG and supplied directly to the PNG renderer so measurements and rendered glyphs agree. Unsupported characters are detected before rendering.
 
@@ -114,7 +114,8 @@ The font is embedded in the SVG and supplied directly to the PNG renderer so mea
 ### Shared rules
 
 - All circles in one diagram use the same radius. Unequal radii could imply quantities, which version one does not encode.
-- Every region label uses one font family, one font size, one weight, and one global text color.
+- Every region label uses one font family, one font size, and one global text color.
+- Labels use the regular weight by default. A user-requested whole label uses the bundled bold weight; formatting individual words is not supported.
 - The renderer never shrinks one label independently.
 - Line wrapping prefers phrase and word boundaries and permits at most three balanced lines.
 - The renderer reserves consistent padding between label bounds and region boundaries.
@@ -139,23 +140,21 @@ The renderer searches within bounded, documented geometry limits. If a label sti
 - Default fill opacity: `0.55`.
 - User-specified colors and opacity override those defaults.
 - Circle outlines use a darker derivative of each fill color at an opacity that keeps boundaries clear.
-- The default artboard background is transparent. A solid background is available when requested.
+- The default artboard background is white. Another solid background is available when requested.
 
 ### Global text contrast
 
 The diagram uses either black text everywhere or white text everywhere. It never mixes the two.
 
-For both candidates, the renderer computes contrast at every labeled region using the actual layered circle colors. For a solid canvas, it evaluates the specified background. For the default transparent canvas, it evaluates both white (`#ffffff`) and near-black (`#111827`) destination backgrounds.
+For both candidates, the renderer computes contrast at every labeled region using the actual layered circle colors composited over the specified solid canvas background. It calculates the minimum contrast across all labeled regions and selects the candidate with the higher minimum.
 
-For each candidate and destination background, the renderer calculates the minimum contrast across all labeled regions. A candidate's score is the better of its light-background and dark-background minimums; the higher-scoring candidate wins. This selects one text color that keeps the whole diagram most legible on at least one common destination theme. The report records the recommended light or dark destination theme.
-
-If the winning candidate does not reach a 4.5:1 minimum contrast across every labeled region on either simulated theme, the output is marked `warning`. The skill recommends a higher opacity or different circle colors rather than changing individual labels or hiding the problem.
+If the winning candidate does not reach a 4.5:1 minimum contrast across every labeled region, the output is marked `warning`. The skill recommends a higher opacity or different circle colors rather than changing individual label colors or hiding the problem.
 
 ## Output Contract
 
 - Always request one SVG and one PNG.
-- SVG uses a tight, content-fitted `viewBox` and embedded font data.
-- PNG preserves transparency and has a longest side of exactly 1600 pixels by default.
+- SVG uses a tight, content-fitted `viewBox`, an explicit white background rectangle by default, and embedded font data.
+- PNG uses the same white background and has a longest side of exactly 1600 pixels by default.
 - PNG aspect ratio matches the SVG viewBox.
 - SVG includes `<title>` and `<desc>` content describing the sets and every named region.
 - Default basenames are descriptive slugs such as `product-engineering-venn`.
@@ -208,15 +207,15 @@ The public `README.md` is justified by the distribution requirement: it provides
 - Two-set diagram with all three regions named.
 - Three-set diagrams with sparse labels and all seven regions named.
 - Phrase-aware wrapping at one, two, and three lines.
-- Equal font size and weight across all labels.
+- Equal font size across all labels, regular weight by default, and bold weight only for explicitly emphasized whole labels.
 - Equal radii within a diagram and uniform geometry growth.
 - `needs_revision` for content that exceeds bounded geometry.
 - Default and custom colors and opacity.
 - One global black-or-white text choice.
 - Contrast warnings for hostile palettes or very low opacity.
-- Transparent and requested solid backgrounds.
+- Default white and requested alternate solid backgrounds.
 - Tight SVG bounds and exact 1600-pixel PNG longest side.
-- Equivalent geometry, font, colors, transparency, and dimensions between SVG and decoded PNG.
+- Equivalent geometry, fonts, colors, background, and dimensions between SVG and decoded PNG.
 - Accessibility metadata and XML escaping.
 - Supported and unsupported character handling.
 - Collision-safe filenames and explicit overwrite behavior.
@@ -234,6 +233,7 @@ Run realistic prompts through multiple available agents and compare them against
 2. A dense three-set prompt naming all seven regions with custom colors and opacity.
 3. A prompt with an overlong center label that should trigger concise rewriting rather than font shrinking.
 4. Light and dark palette prompts that exercise the single global text-color rule.
+5. A prompt that requests bold emphasis for one whole set or overlap label while all other labels remain regular.
 
 Successful skill runs must invoke the same bundled renderer, create both file types, honor the semantic content, and pass programmatic artifact checks. Human review will judge visual balance and the quality of inferred wording.
 
@@ -252,11 +252,11 @@ Successful skill runs must invoke the same bundled renderer, create both file ty
 ## Acceptance Criteria
 
 - A fresh user can install the skill for a supported local agent with one `npx skills add` command.
-- A natural-language two-set or three-set request produces a valid SVG and visually matching transparent PNG without additional installation.
+- A natural-language two-set or three-set request produces a valid SVG and visually matching white-background PNG without additional installation.
 - Every named region is labeled directly inside its correct region.
-- All labels in one diagram share font family, size, weight, and one black-or-white color.
+- All labels in one diagram share font family, size, and one black-or-white color; explicitly selected whole labels may use bold while all others remain regular.
 - Labels wrap to at most three lines; the renderer grows equal-radius geometry or requests shorter wording rather than shrinking individual text.
 - User-selected colors and opacity are honored, and unreadable combinations produce actionable warnings.
-- Default output is tightly fitted and transparent; PNG longest side is 1600 pixels.
+- Default output is tightly fitted on a white background; PNG longest side is 1600 pixels.
 - The renderer never silently truncates, omits, overwrites, or fabricates output success.
 - The installed skill behaves consistently across the tested agents because geometry and file generation are handled by the bundled renderer.

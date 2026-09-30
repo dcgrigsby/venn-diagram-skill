@@ -10,7 +10,7 @@ This repository currently contains the approved design specification, not a work
 
 ## Disclaimer
 
-Generated diagrams may include AI-inferred wording or relationships. Review the content before use. Circle and overlap areas are conceptual and do not represent quantities. Automatic contrast is a best effort, particularly when a transparent image is placed on a different background. The software is provided without warranty under the terms of the [Apache License 2.0](LICENSE).
+Generated diagrams may include AI-inferred wording or relationships. Review the content before use. Circle and overlap areas are conceptual and do not represent quantities. Automatic text contrast is a best effort. The software is provided without warranty under the terms of the [Apache License 2.0](LICENSE).
 
 ## Planned install
 
@@ -31,7 +31,8 @@ Users will ask their skill-aware agent naturally, for example:
 The finished skill will create:
 
 - A content-fitted SVG with embedded typography and accessibility metadata.
-- A visually matching transparent PNG whose longest side is 1600 pixels by default.
+- A visually matching white-background PNG whose longest side is 1600 pixels by default.
+- Optional whole-label bold emphasis when requested.
 
 Version one is intentionally limited to conceptual diagrams with two or three equal-radius circles. It will not create count-based or area-proportional diagrams.
 
