@@ -16486,8 +16486,12 @@ function fail(code, path, message) {
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
+var FORBIDDEN_XML_CHARACTER = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/u;
 function normalizeText(value, code, path) {
   if (typeof value !== "string") fail(code, path, `${path} must be a string`);
+  if (FORBIDDEN_XML_CHARACTER.test(value)) {
+    fail(code, path, `${path} contains a character forbidden in XML`);
+  }
   const lines = value.replace(/\r\n?/g, "\n").split("\n");
   if (lines.length > 3) fail(code, path, `${path} may contain at most three lines`);
   const normalized = lines.map((line) => line.replace(/[^\S\n]+/gu, " ").trim()).join("\n");
@@ -16613,20 +16617,27 @@ function normalizeAccessibility(value, sets, overlaps) {
   if (!isRecord(value)) {
     fail("INVALID_ACCESSIBILITY", "accessibility", "accessibility must be an object");
   }
+  const explicit = {};
   for (const key of ["title", "description"]) {
     if (value[key] !== void 0 && typeof value[key] !== "string") {
       fail("INVALID_ACCESSIBILITY", `accessibility.${key}`, `accessibility.${key} must be a string`);
     }
-    if (value[key] !== void 0 && /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/u.test(value[key])) {
+    if (value[key] !== void 0 && FORBIDDEN_XML_CHARACTER.test(value[key])) {
       fail("INVALID_ACCESSIBILITY", `accessibility.${key}`, `accessibility.${key} contains a character forbidden in XML`);
     }
+    if (value[key] !== void 0) {
+      explicit[key] = value[key].trim();
+      if (!explicit[key]) {
+        fail("INVALID_ACCESSIBILITY", `accessibility.${key}`, `accessibility.${key} must not be empty`);
+      }
+    }
   }
-  const title = value.title ?? `Venn diagram: ${sets.map((set) => set.label).join(", ")}`;
+  const title = explicit.title ?? `Venn diagram: ${sets.map((set) => set.label).join(", ")}`;
   const namedOverlaps = [...overlaps].map(([key, item]) => {
     const names = sets.filter((set) => key.includes(set.id)).map((set) => set.label);
     return `${names.join(" and ")}: ${item.text}`;
   });
-  const description = value.description ?? `Sets: ${sets.map((set) => set.label).join("; ")}.${namedOverlaps.length ? ` Overlaps: ${namedOverlaps.join("; ")}.` : ""}`;
+  const description = explicit.description ?? `Sets: ${sets.map((set) => set.label).join("; ")}.${namedOverlaps.length ? ` Overlaps: ${namedOverlaps.join("; ")}.` : ""}`;
   return { title, description };
 }
 function normalizeSpec(raw, cwd) {
@@ -17234,7 +17245,7 @@ function serializeSvg(layout, fonts, accessibility) {
 }
 
 // src/output.mjs
-import { mkdir, open, rename, stat, unlink } from "node:fs/promises";
+import { link, lstat, mkdir, open, rename, unlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 var owned = /* @__PURE__ */ new Map();
@@ -17242,43 +17253,48 @@ var overwriteAllowed = /* @__PURE__ */ new Set();
 function sameFile(first, second) {
   return first.dev === second.dev && first.ino === second.ino;
 }
-async function reserve(path) {
-  const handle = await open(path, "wx");
+async function exists(path) {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+async function reservePair(svgPath, pngPath, lockPath) {
+  const handle = await open(lockPath, "wx");
   const identity = await handle.stat();
-  let active = true;
-  let closed = false;
-  const close = async () => {
-    if (closed) return;
+  let remaining = 2;
+  const releaseLock = async () => {
     await handle.close();
-    closed = true;
-  };
-  const reservation = {
-    path,
-    async release() {
-      if (!active) return;
-      active = false;
-      owned.delete(path);
-      await close();
-      try {
-        if (sameFile(await stat(path), identity)) await unlink(path);
-      } catch (error) {
-        if (error.code !== "ENOENT") throw error;
-      }
-    },
-    async prepareCommit() {
-      if (!active) throw new Error(`output reservation is no longer active: ${path}`);
-      if (!sameFile(await stat(path), identity)) {
-        throw new Error(`output reservation changed: ${path}`);
-      }
-      await close();
-    },
-    finishCommit() {
-      active = false;
-      owned.delete(path);
+    try {
+      if (sameFile(await lstat(lockPath), identity)) await unlink(lockPath);
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
     }
   };
-  owned.set(path, reservation);
-  return reservation;
+  const makeReservation = (path) => {
+    let active = true;
+    const reservation = {
+      path,
+      async release() {
+        if (!active) return;
+        active = false;
+        owned.delete(path);
+        remaining -= 1;
+        if (remaining === 0) await releaseLock();
+      }
+    };
+    owned.set(path, reservation);
+    return reservation;
+  };
+  return {
+    svgPath,
+    pngPath,
+    svgReservation: makeReservation(svgPath),
+    pngReservation: makeReservation(pngPath)
+  };
 }
 async function reserveOutputPair(output) {
   await mkdir(output.directory, { recursive: true });
@@ -17300,13 +17316,21 @@ async function reserveOutputPair(output) {
         } }
       };
     }
-    let svgReservation;
+    let pair;
     try {
-      svgReservation = await reserve(svgPath);
-      const pngReservation = await reserve(pngPath);
-      return { svgPath, pngPath, svgReservation, pngReservation };
+      const lockPath = join(output.directory, `.${basename}.venn-reservation`);
+      pair = await reservePair(svgPath, pngPath, lockPath);
+      if (await exists(svgPath) || await exists(pngPath)) {
+        await pair.svgReservation.release();
+        await pair.pngReservation.release();
+        continue;
+      }
+      return pair;
     } catch (error) {
-      if (svgReservation) await svgReservation.release();
+      if (pair) {
+        await pair.svgReservation.release();
+        await pair.pngReservation.release();
+      }
       if (error.code === "EEXIST") continue;
       throw error;
     }
@@ -17325,9 +17349,13 @@ async function atomicWrite(path, bytes) {
     await handle.sync();
     await handle.close();
     handle = null;
-    if (reservation) await reservation.prepareCommit();
-    await rename(tempPath, path);
-    if (reservation) reservation.finishCommit();
+    if (reservation) {
+      await link(tempPath, path);
+      await unlink(tempPath);
+      await reservation.release();
+    } else {
+      await rename(tempPath, path);
+    }
     overwriteAllowed.delete(path);
   } catch (error) {
     const cleanupErrors = [];

@@ -82,6 +82,11 @@ test('rejects empty set labels', () => {
   rejects(raw, 'INVALID_LABEL', 'sets[0].label');
 });
 
+test('rejects XML-forbidden characters in set labels before deriving accessibility text', () => {
+  const raw = basic(); raw.sets[0].label = 'Product\u0000';
+  rejects(raw, 'INVALID_LABEL', 'sets[0].label');
+});
+
 test('normalizes horizontal whitespace while preserving explicit newlines', () => {
   const raw = basic(); raw.sets[0].label = '  Product\t team  \n  Strategy   group ';
   raw.overlaps.ab = { text: '  Roadmap\t work  \n  Priorities  ' };
@@ -97,6 +102,11 @@ test('rejects a fourth explicit line in a set label', () => {
 
 test('rejects a fourth explicit line in overlap text', () => {
   const raw = basic(); raw.overlaps.ab = { text: 'one\ntwo\nthree\nfour' };
+  rejects(raw, 'INVALID_OVERLAP', 'overlaps.ab.text');
+});
+
+test('rejects XML-forbidden characters in overlap text before deriving accessibility text', () => {
+  const raw = basic(); raw.overlaps.ab = { text: 'Feasible\u000B roadmap' };
   rejects(raw, 'INVALID_OVERLAP', 'overlaps.ab.text');
 });
 
@@ -161,6 +171,19 @@ test('preserves explicit accessibility text', () => {
   const raw = basic(); raw.accessibility = { title: 'My title', description: 'My description' };
   const normalized = normalizeSpec(raw, projectRoot);
   assert.deepEqual(normalized.accessibility, { title: 'My title', description: 'My description' });
+});
+
+test('trims nonempty explicit accessibility text', () => {
+  const raw = basic(); raw.accessibility = { title: '  My title  ', description: '\n My description \t' };
+  const normalized = normalizeSpec(raw, projectRoot);
+  assert.deepEqual(normalized.accessibility, { title: 'My title', description: 'My description' });
+});
+
+test('rejects empty explicit accessibility title and description', () => {
+  const raw = basic(); raw.accessibility = { title: ' \t ', description: 'Valid' };
+  rejects(raw, 'INVALID_ACCESSIBILITY', 'accessibility.title');
+  raw.accessibility = { title: 'Valid', description: '\n  ' };
+  rejects(raw, 'INVALID_ACCESSIBILITY', 'accessibility.description');
 });
 
 test('rejects XML-forbidden control characters in accessibility metadata', () => {

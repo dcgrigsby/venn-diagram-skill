@@ -26,8 +26,13 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+const FORBIDDEN_XML_CHARACTER = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/u;
+
 function normalizeText(value, code, path) {
   if (typeof value !== 'string') fail(code, path, `${path} must be a string`);
+  if (FORBIDDEN_XML_CHARACTER.test(value)) {
+    fail(code, path, `${path} contains a character forbidden in XML`);
+  }
   const lines = value.replace(/\r\n?/g, '\n').split('\n');
   if (lines.length > 3) fail(code, path, `${path} may contain at most three lines`);
   const normalized = lines
@@ -178,20 +183,27 @@ function normalizeAccessibility(value, sets, overlaps) {
   if (!isRecord(value)) {
     fail('INVALID_ACCESSIBILITY', 'accessibility', 'accessibility must be an object');
   }
+  const explicit = {};
   for (const key of ['title', 'description']) {
     if (value[key] !== undefined && typeof value[key] !== 'string') {
       fail('INVALID_ACCESSIBILITY', `accessibility.${key}`, `accessibility.${key} must be a string`);
     }
-    if (value[key] !== undefined && /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/u.test(value[key])) {
+    if (value[key] !== undefined && FORBIDDEN_XML_CHARACTER.test(value[key])) {
       fail('INVALID_ACCESSIBILITY', `accessibility.${key}`, `accessibility.${key} contains a character forbidden in XML`);
     }
+    if (value[key] !== undefined) {
+      explicit[key] = value[key].trim();
+      if (!explicit[key]) {
+        fail('INVALID_ACCESSIBILITY', `accessibility.${key}`, `accessibility.${key} must not be empty`);
+      }
+    }
   }
-  const title = value.title ?? `Venn diagram: ${sets.map((set) => set.label).join(', ')}`;
+  const title = explicit.title ?? `Venn diagram: ${sets.map((set) => set.label).join(', ')}`;
   const namedOverlaps = [...overlaps].map(([key, item]) => {
     const names = sets.filter((set) => key.includes(set.id)).map((set) => set.label);
     return `${names.join(' and ')}: ${item.text}`;
   });
-  const description = value.description ?? `Sets: ${sets.map((set) => set.label).join('; ')}.${
+  const description = explicit.description ?? `Sets: ${sets.map((set) => set.label).join('; ')}.${
     namedOverlaps.length ? ` Overlaps: ${namedOverlaps.join('; ')}.` : ''
   }`;
   return { title, description };

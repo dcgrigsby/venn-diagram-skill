@@ -124,6 +124,25 @@ test('pair reservation skips either existing extension and races safely', async 
   await assert.rejects(stat(join(directory, 'pair.svg')), { code: 'ENOENT' });
 }));
 
+test('no-overwrite reservation leaves final paths absent until a completed write', async () => temporary(async (directory) => {
+  const pair = await reserveOutputPair({ directory, basename: 'open', overwrite: false });
+  await assert.rejects(stat(pair.svgPath), { code: 'ENOENT' });
+  await assert.rejects(stat(pair.pngPath), { code: 'ENOENT' });
+  await atomicWrite(pair.svgPath, 'complete');
+  assert.equal(await readFile(pair.svgPath, 'utf8'), 'complete');
+  await pair.pngReservation.release();
+}));
+
+test('no-overwrite write never replaces or deletes a final file created after reservation', async () => temporary(async (directory) => {
+  const pair = await reserveOutputPair({ directory, basename: 'contended', overwrite: false });
+  await writeFile(pair.svgPath, 'other writer');
+  await assert.rejects(atomicWrite(pair.svgPath, 'our diagram'), { code: 'EEXIST' });
+  await pair.svgReservation.release();
+  await pair.pngReservation.release();
+  assert.equal(await readFile(pair.svgPath, 'utf8'), 'other writer');
+  assert.deepEqual((await readdir(directory)).sort(), ['contended.svg']);
+}));
+
 test('atomic write preserves existing output on failed temporary write and overwrites only when requested', async () => temporary(async (directory) => {
   const path = join(directory, 'exact.svg');
   await writeFile(path, 'original');
@@ -140,7 +159,7 @@ test('atomic write preserves existing output on failed temporary write and overw
   assert.deepEqual((await readdir(directory)).sort(), ['exact.svg']);
 }));
 
-test('failed reserved write removes only its own placeholder', async () => temporary(async (directory) => {
+test('failed reserved write releases its pair lock without touching a neighbor', async () => temporary(async (directory) => {
   const output = await reserveOutputPair({ directory, basename: 'failure', overwrite: false });
   await writeFile(join(directory, 'neighbor.txt'), 'keep');
   await assert.rejects(atomicWrite(output.svgPath, undefined));
