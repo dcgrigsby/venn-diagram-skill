@@ -238,3 +238,30 @@ test('CLI emits one structured JSON error for invalid JSON', async () => {
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+function assertCliUsageError(args) {
+  const run = spawnSync(process.execPath, ['scripts/render-venn.mjs', ...args], {
+    cwd: projectRoot, encoding: 'utf8',
+  });
+  assert.equal(run.status, 1);
+  assert.ok(run.stdout.length > 0, 'expected structured JSON on stdout');
+  assert.equal(run.stdout.trim().split('\n').length, 1);
+  const result = JSON.parse(run.stdout);
+  assert.equal(result.status, 'error');
+  assert.equal(result.error.code, 'INVALID_ARGUMENTS');
+  assert.equal(result.error.path, 'argv');
+  assert.ok(result.error.message.length > 0);
+  assert.ok(run.stderr.length > 0);
+}
+
+test('CLI reports a structured error with no arguments', () => {
+  assertCliUsageError([]);
+});
+
+test('CLI reports a structured error with multiple spec paths', () => {
+  assertCliUsageError(['tests/fixtures/two-basic.json', 'tests/fixtures/three-full.json']);
+});
+
+test('CLI reports a structured error for an unsupported option', () => {
+  assertCliUsageError(['--unsupported']);
+});

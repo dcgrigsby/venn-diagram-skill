@@ -361,6 +361,17 @@ var RENDERER_INFO = Object.freeze({
   rendererVersion: "0.1.0",
   schemaVersion: 1
 });
+function reportError(error, debugMessage = error.stack ?? String(error)) {
+  const detail = error instanceof SpecError ? error : new SpecError("INPUT_ERROR", "$", "unable to read specification file");
+  process.stdout.write(`${JSON.stringify({
+    status: "error",
+    error: { code: detail.code, path: detail.path, message: detail.message }
+  })}
+`);
+  process.stderr.write(`${debugMessage}
+`);
+  return 1;
+}
 async function main(argv = process.argv.slice(2)) {
   if (argv.length === 1 && argv[0] === "--version") {
     process.stdout.write(`${JSON.stringify(RENDERER_INFO)}
@@ -385,19 +396,13 @@ async function main(argv = process.argv.slice(2)) {
 `);
       return 0;
     } catch (error) {
-      const detail = error instanceof SpecError ? error : new SpecError("INPUT_ERROR", "$", "unable to read specification file");
-      process.stdout.write(`${JSON.stringify({
-        status: "error",
-        error: { code: detail.code, path: detail.path, message: detail.message }
-      })}
-`);
-      process.stderr.write(`${error.stack ?? error}
-`);
-      return 1;
+      return reportError(error);
     }
   }
-  process.stderr.write("Usage: render-venn.mjs --version | <spec.json>\n");
-  return 1;
+  return reportError(
+    new SpecError("INVALID_ARGUMENTS", "argv", "expected one specification JSON path or --version"),
+    "Usage: render-venn.mjs --version | <spec.json>"
+  );
 }
 
 // src/main.mjs
