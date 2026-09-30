@@ -13,6 +13,11 @@ test('accepts hex and standard CSS names', () => {
   assert.deepEqual(parseColor('navy'), { r: 0, g: 0, b: 128, a: 1 });
 });
 
+test('rejects inherited object property names as CSS colors', () => {
+  assert.throws(() => parseColor('constructor'), TypeError);
+  assert.throws(() => parseColor('toString'), TypeError);
+});
+
 test('composites overlapping circles in deterministic draw order', () => {
   const white = parseColor('#ffffff');
   const colors = new Map([

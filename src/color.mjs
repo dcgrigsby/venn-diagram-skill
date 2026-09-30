@@ -19,8 +19,11 @@ export function parseColor(value) {
     };
   }
 
-  const named = cssColors[value.toLowerCase()];
-  if (named) return { r: named[0], g: named[1], b: named[2], a: 1 };
+  const name = value.toLowerCase();
+  if (Object.hasOwn(cssColors, name)) {
+    const named = cssColors[name];
+    return { r: named[0], g: named[1], b: named[2], a: 1 };
+  }
 
   throw new TypeError(`Unsupported CSS color: ${value}`);
 }
