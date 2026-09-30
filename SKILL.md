@@ -11,6 +11,8 @@ Turn the request into a conceptual diagram with exactly two or three sets. Ident
 
 Write a schema version 1 JSON file in the requested output directory or a secure temporary directory. Use set IDs `a`, `b`, and optionally `c` in order. For two sets, `ab` is the only overlap key; for three, use only requested or deliberately developed keys among `ab`, `ac`, `bc`, and `abc`. An absent overlap has no label. Keep each visible label concise. Set `bold: true` only on an **entire** set or overlap label the user explicitly asked to emphasize; partial bold is unsupported.
 
+Each `sets[].label` is the **one embedded label in that set's exclusive region**. When the user supplies both a set name and exclusive content, preserve the wording in that one label with a line break, such as `"Product\nCustomer priorities"`; do not place the set name outside the circles or add a separate text pill. When only a set name is supplied, use that name alone. Apply this rule to `a` and `b` in two-set diagrams and to `a`, `b`, and `c` in three-set diagrams. All these labels still share the diagram-wide font size and text color; `bold` applies to the whole combined label only if explicitly requested.
+
 Translate color descriptions to solid CSS color names or `#RGB`/`#RRGGBB` hex values. The defaults are blue `#2563EB`, amber `#F59E0B`, teal `#14B8A6`, opacity `0.55`, and white `#FFFFFF` background. Do not turn qualitative relationships into measured areas.
 
 This is the complete two-set schema example; replace its labels and output directory for the request:
@@ -41,9 +43,9 @@ This is the complete two-set schema example; replace its labels and output direc
 
 If the user requests a location, make `output.directory` its absolute path. Otherwise choose an appropriate absolute output directory; do not rely on `"."` unless it is intentionally the user's requested location. Keep `pngLongestSide` at 1600 unless the user requests another size. Omit `bold` when false. The renderer can derive an accessible title and description from the named labels, or accept optional `accessibility.title` and `accessibility.description` strings.
 
-Two-set request example: “Show Product and Engineering; use customer priorities on the Product side, reliable implementation on the Engineering side, and a viable roadmap in the overlap.” Set `ab` to “Viable roadmap” and do not invent other regions.
+Two-set request example: “Show Product and Engineering; use customer priorities on the Product side, reliable implementation on the Engineering side, and a viable roadmap in the overlap.” Use `"Product\nCustomer priorities"` for `a`, `"Engineering\nReliable implementation"` for `b`, and “Viable roadmap” for `ab`. These are three embedded region labels; do not invent other regions.
 
-Sparse three-set request example: “Show Strategy, Delivery, and Support. Label only their common center Customer trust, in bold.” Set `abc` to `{ "text": "Customer trust", "bold": true }`; leave `ab`, `ac`, and `bc` absent.
+Sparse three-set request example: “Show Strategy, Delivery, and Support. Label only their common center Customer trust, in bold.” Use `Strategy`, `Delivery`, and `Support` as the three set labels because no exclusive content was supplied. Set `abc` to `{ "text": "Customer trust", "bold": true }`; leave `ab`, `ac`, and `bc` absent. If a three-set request also supplies exclusive content, combine each supplied phrase with its corresponding set name using the same embedded newline rule.
 
 ## Render and review
 
