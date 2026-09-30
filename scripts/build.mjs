@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { build } from 'esbuild';
 
@@ -11,7 +11,11 @@ await copyFile(
   'vendor/resvg/index_bg.wasm',
 );
 await build({
-  entryPoints: ['src/main.mjs'],
+  stdin: {
+    contents: "import './src/main.mjs'; export { loadFonts, validateGlyphs, measureLine, wrapCandidates } from './src/typography.mjs';",
+    resolveDir: process.cwd(),
+    sourcefile: 'src/runtime-entry.mjs',
+  },
   outfile,
   bundle: true,
   platform: 'node',
@@ -21,4 +25,5 @@ await build({
   legalComments: 'eof',
   sourcemap: false,
 });
+await writeFile(outfile, (await readFile(outfile, 'utf8')).replace(/[\t ]+$/gm, ''));
 await chmod(outfile, 0o755);
