@@ -4,7 +4,7 @@
 
 `venn-diagram-skill` is a public, cross-agent skill that creates conceptual two-set and three-set Venn diagrams from natural-language requests. It produces a content-fitted SVG and a matching transparent PNG without requiring post-install setup.
 
-The repository will be installable through the open Skills CLI using the GitHub shorthand `npx skills add OWNER/venn-diagram-skill -g`, where `OWNER` is the account that publishes the repository. Selecting that account is a publication action, not an unresolved product or implementation decision. The repository, skill folder, and `SKILL.md` frontmatter name will all use `venn-diagram-skill`.
+The repository will be installable through the open Skills CLI with `npx skills add dcgrigsby/venn-diagram-skill -g`. The repository, skill folder, and `SKILL.md` frontmatter name will all use `venn-diagram-skill`.
 
 ## Goals
 
