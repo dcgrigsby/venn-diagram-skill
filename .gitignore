@@ -1,1 +1,6 @@
 .superpowers/
+node_modules/
+eval-results/
+*.tmp
+*.temp
+.DS_Store
