@@ -12,7 +12,7 @@ await copyFile(
 );
 await build({
   stdin: {
-    contents: "import './src/main.mjs'; export { loadFonts, validateGlyphs, measureLine, wrapCandidates } from './src/typography.mjs';",
+    contents: "import './src/main.mjs'; export { loadFonts, validateGlyphs, measureLine, wrapCandidates } from './src/typography.mjs'; export { renderPng, ensureResvg } from './src/png.mjs';",
     resolveDir: process.cwd(),
     sourcefile: 'src/runtime-entry.mjs',
   },

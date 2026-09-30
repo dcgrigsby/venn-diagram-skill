@@ -120,3 +120,38 @@ export async function atomicWrite(path, bytes) {
     throw error;
   }
 }
+
+// Stage both overwrite artifacts before touching either existing final file.
+export async function atomicOverwritePair(output, svg, png) {
+  const paths = [output.svgPath, output.pngPath];
+  if (paths.some((path) => !overwriteAllowed.has(path))) {
+    throw new Error('overwrite paths have not been reserved');
+  }
+  const staged = [];
+  try {
+    for (const [index, path] of paths.entries()) {
+      const tempPath = join(dirname(path), `.${randomUUID()}.venn-tmp`);
+      let handle;
+      try {
+        handle = await open(tempPath, 'wx');
+        staged.push(tempPath);
+        await handle.writeFile(index === 0 ? svg : png);
+        await handle.sync();
+      } finally {
+        await handle?.close();
+      }
+    }
+    for (let index = 0; index < paths.length; index += 1) {
+      await rename(staged[index], paths[index]);
+      overwriteAllowed.delete(paths[index]);
+    }
+  } finally {
+    for (const tempPath of staged) {
+      try { await unlink(tempPath); } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    await output.svgReservation.release();
+    await output.pngReservation.release();
+  }
+}

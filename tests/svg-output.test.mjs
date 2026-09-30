@@ -179,7 +179,7 @@ test('releasing an overwrite slot revokes later writes to that path', async () =
   await pair.svgReservation.release();
 }));
 
-test('CLI writes a valid SVG but exits incomplete while PNG is pending', async () => temporary(async (directory) => {
+test('CLI overwrites a complete SVG and PNG pair', async () => temporary(async (directory) => {
   const raw = await fixture('two-basic.json');
   raw.output.directory = directory;
   raw.output.overwrite = true;
@@ -189,15 +189,14 @@ test('CLI writes a valid SVG but exits incomplete while PNG is pending', async (
   const result = spawnSync(process.execPath, [new URL('../src/main.mjs', import.meta.url).pathname, input], {
     encoding: 'utf8',
   });
-  assert.equal(result.status, 1);
+  assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
-  assert.equal(report.status, 'incomplete');
-  assert.equal(report.png.status, 'pending');
-  assert.equal(report.png.path, null);
-  assert.ok(report.png.plannedPath.endsWith('.png'));
-  assert.ok(report.svg.path.endsWith('.svg'));
-  assert.equal(only(await readFile(report.svg.path, 'utf8'), 'svg').role, 'img');
-  assert.equal(await readFile(report.png.plannedPath, 'utf8'), 'old PNG');
+  assert.equal(report.status, 'ok');
+  assert.ok(report.svgPath.endsWith('.svg'));
+  assert.ok(report.pngPath.endsWith('.png'));
+  assert.equal(only(await readFile(report.svgPath, 'utf8'), 'svg').role, 'img');
+  assert.deepEqual([...((await readFile(report.pngPath)).subarray(0, 8))],
+    [137, 80, 78, 71, 13, 10, 26, 10]);
 }));
 
 test('CLI reports an output error when its destination cannot be created', async () => temporary(async (directory) => {

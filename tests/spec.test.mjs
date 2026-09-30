@@ -225,7 +225,7 @@ test('falls back to a safe basename when labels cannot be transliterated', () =>
   assert.equal(normalizeSpec(raw, projectRoot).output.basename, 'venn-diagram');
 });
 
-test('built CLI reports incomplete output with an SVG artifact', async () => {
+test('built CLI reports a complete SVG and PNG pair', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'venn-built-cli-'));
   try {
     const raw = fixture('two-basic.json');
@@ -235,14 +235,11 @@ test('built CLI reports incomplete output with an SVG artifact', async () => {
     const run = spawnSync(process.execPath, ['scripts/render-venn.mjs', input], {
       cwd: projectRoot, encoding: 'utf8',
     });
-    assert.equal(run.status, 1, run.stderr);
+    assert.equal(run.status, 0, run.stderr);
     const report = JSON.parse(run.stdout);
-    assert.equal(report.status, 'incomplete');
-    assert.equal(report.svg.status, 'written');
-    assert.equal(report.png.status, 'pending');
-    assert.match(await readFile(report.svg.path, 'utf8'), /<svg\b/);
-    assert.equal(report.png.path, null);
-    assert.equal(existsSync(report.png.plannedPath), false);
+    assert.equal(report.status, 'ok');
+    assert.match(await readFile(report.svgPath, 'utf8'), /<svg\b/);
+    assert.equal(existsSync(report.pngPath), true);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
