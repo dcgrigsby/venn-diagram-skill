@@ -1,0 +1,7 @@
+interface:
+  display_name: "Venn Diagrams"
+  short_description: "Create labeled two- and three-set Venn diagrams"
+  brand_color: "#2563EB"
+  default_prompt: "Use $venn-diagram-skill to create a conceptual Venn diagram from my description."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,85 @@
+{
+  "skill_name": "venn-diagram-skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Create a two-set Venn diagram for Product and Engineering. Product owns customer priorities; Engineering owns reliable implementation. Develop one useful shared outcome, use the default colors and a solid white background, and put both files in my chosen output folder.",
+      "expected_output": "A complete Product/Engineering SVG and PNG pair with one inferred, disclosed ab overlap and no other overlap keys.",
+      "files": [],
+      "expectations": [
+        "The agent uses the bundled renderer through schema-v1 JSON and parses its single report.",
+        "The agent discloses the assumption behind the developed ab wording and does not imply measured quantities.",
+        "Both SVG and PNG exist with a solid white background; the PNG longest side is 1600 pixels.",
+        "The SVG has exactly two equal-radius circles and region labels only for a, b, and ab.",
+        "All visible labels share one font size and one text color; no label is bold."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Make a three-set Venn for Product, Engineering, and Operations. Label all seven regions: Product only Customer priorities; Engineering only Reliable implementation; Operations only Repeatable service; Product and Engineering Viable roadmap; Product and Operations Customer feedback; Engineering and Operations Stable delivery; all three Sustainable experience. Use navy #142B5E, gold #E8B541, and teal #148C8C, respectively, at 0.6 opacity on solid #F8FAFC. Save the SVG and PNG together.",
+      "expected_output": "A full seven-region three-set pair honoring the requested colors, opacity, background, and wording.",
+      "files": [],
+      "expectations": [
+        "The agent uses schema v1 and the installed bundled renderer, then checks the JSON report.",
+        "Both SVG and PNG exist; the requested #F8FAFC solid background is applied and the PNG longest side is 1600 pixels.",
+        "The SVG has exactly three equal-radius circles with the requested circle colors at 0.6 opacity.",
+        "The report and SVG contain exactly a, b, c, ab, ac, bc, and abc labels with the requested wording.",
+        "All visible labels share one font size and one black-or-white text color; no label is bold.",
+        "The response notes that circle areas are conceptual, not numerical."
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Draw a white-background Venn of Strategy, Delivery, and Support. The center should say Customer trust; bold only that whole center label. Label the pairwise overlaps Shared plan, Smooth handoff, and Clear escalation. Save both formats.",
+      "expected_output": "A three-set pair with only the abc label bold and no partial text styling.",
+      "files": [],
+      "expectations": [
+        "The agent writes schema-v1 JSON with bold true only for abc and invokes the bundled renderer.",
+        "Both SVG and PNG exist with a solid white background and the PNG longest side is 1600 pixels.",
+        "The SVG has exactly three equal-radius circles and region keys a, b, c, ab, ac, bc, and abc.",
+        "All visible labels share one font size and one text color; only the entire abc label uses bold weight.",
+        "The agent inspects the pair and reports any renderer warnings and semantic assumptions."
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Please make a sparse three-circle Venn for Strategy, Delivery, and Support. Keep only a Strategy/Support overlap named Shared context and the all-three center named Customer trust. Leave the Strategy/Delivery and Delivery/Support overlaps unlabeled. Use a solid cream #FFFDF4 background and give me the SVG and PNG.",
+      "expected_output": "A sparse three-set pair that omits ab and bc rather than inventing labels.",
+      "files": [],
+      "expectations": [
+        "The specification omits ab and bc entirely and includes only ac and abc overlaps.",
+        "Both SVG and PNG exist with solid #FFFDF4 background; the PNG longest side is 1600 pixels.",
+        "The SVG has exactly three equal-radius circles and label keys a, b, c, ac, and abc only.",
+        "All visible labels share one font size and one text color; no label is bold.",
+        "The agent uses the bundled renderer and does not imply quantities from circle areas."
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Create a white-background two-set Venn for Research and Operations. Put this exact initial phrase in their overlap: An extraordinarily comprehensive and meticulously coordinated cross-functional system for continuously synthesizing every qualitative and quantitative insight into operationally executable, sustainably resourced, thoroughly validated strategic decisions. If the renderer says it cannot fit, show me the needs_revision report, propose a concise meaning-preserving replacement, then use that replacement to finish both files. You may choose the replacement without waiting for my reply.",
+      "expected_output": "An observed needs_revision loop followed by a completed two-set pair using a concise, disclosed overlap phrase.",
+      "files": [],
+      "expectations": [
+        "The first renderer invocation exits 2 with status needs_revision and a limiting ab region; the agent reports that result.",
+        "The agent proposes and uses a shorter overlap phrase that preserves the original meaning rather than shrinking, clipping, or truncating the label.",
+        "A subsequent invocation produces both SVG and PNG with a solid white background and PNG longest side 1600 pixels.",
+        "The final SVG has exactly two equal-radius circles and labels only a, b, and ab.",
+        "All final visible labels share one font size and one text color; no label is bold."
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Make a sparse three-set Venn for Planning, Building, and Learning. Label only the three exclusive regions; leave every overlap unlabeled. Use a solid white background, black #000000 for Planning, black #000000 for Building, and light silver #C0C0C0 for Learning, all at 0.55 opacity. Keep the palette even if contrast is difficult; report any warning. Save SVG and PNG.",
+      "expected_output": "A complete warning-status pair whose one global black-or-white text color is selected from labeled regions only.",
+      "files": [],
+      "expectations": [
+        "The agent uses the bundled renderer and preserves only a, b, and c label keys; ab, ac, bc, and abc are absent.",
+        "Both SVG and PNG exist with a solid white background and PNG longest side 1600 pixels.",
+        "The SVG has exactly three equal-radius circles with the requested black, black, and silver colors at 0.55 opacity.",
+        "All visible labels share one font size and the global #000000 text color; no label is bold.",
+        "The report has status warning with LOW_CONTRAST and minimum contrast near 4.43 from labeled a, b, and c regions; counting the unlabeled ab overlap would incorrectly lower it near 1.69.",
+        "The agent conveys the contrast warning and does not claim quantitative areas."
+      ]
+    }
+  ]
+}

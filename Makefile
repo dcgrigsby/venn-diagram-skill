@@ -1,4 +1,4 @@
-.PHONY: build test verify
+.PHONY: build test verify install-smoke
 
 build:
 	npm run build
@@ -8,3 +8,6 @@ test:
 
 verify:
 	npm run verify
+
+install-smoke:
+	node --test tests/install-smoke.mjs
