@@ -46,7 +46,7 @@ function phraseBoundaryScore(lines) {
     score + (/[,;:/&-]$/u.test(line) ? 1 : 0), 0);
 }
 
-function partitions(words, lineCount) {
+function partitions(words, lineCount, maxWidth, bold, fontSize, fonts) {
   const result = [];
   function visit(start, lines) {
     if (lines.length === lineCount) {
@@ -54,8 +54,11 @@ function partitions(words, lineCount) {
       return;
     }
     const remaining = lineCount - lines.length - 1;
+    let line = '';
     for (let end = start + 1; end <= words.length - remaining; end += 1) {
-      visit(end, [...lines, words.slice(start, end).join(' ')]);
+      line = line ? `${line} ${words[end - 1]}` : words[end - 1];
+      if (measureLine(line, bold, fontSize, fonts) > maxWidth) break;
+      visit(end, [...lines, line]);
     }
   }
   visit(0, []);
@@ -76,11 +79,11 @@ export function wrapCandidates(text, bold, fontSize, fonts) {
     throw new TypographyError('LABEL_TOO_LONG', 'label must have one to three nonempty lines');
   }
 
+  const maxWidth = fontSize * MAX_LINE_EM;
   const lineSets = normalized.includes('\n')
     ? [explicitLines]
     : [1, 2, 3].flatMap((lineCount) =>
-      partitions(normalized.trim().split(/\s+/u), lineCount));
-  const maxWidth = fontSize * MAX_LINE_EM;
+      partitions(normalized.trim().split(/\s+/u), lineCount, maxWidth, bold, fontSize, fonts));
   const candidates = lineSets.map((lines) => {
     const widths = lines.map((line) => measureLine(line, bold, fontSize, fonts));
     const width = Math.max(...widths);

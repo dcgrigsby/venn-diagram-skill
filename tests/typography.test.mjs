@@ -49,6 +49,23 @@ test('rejects four explicit lines and an overwide unbroken token', async () => {
   }
 });
 
+test('rejects a long ordinary-word label promptly', async () => {
+  const fonts = await loadTestFonts();
+  const label = Array(100).fill('roadmap').join(' ');
+  const started = performance.now();
+  assert.throws(() => wrapCandidates(label, false, 28, fonts), { code: 'LABEL_TOO_LONG' });
+  assert.ok(performance.now() - started < 1000, 'long labels must reject within one second');
+});
+
+test('keeps every fitting partition, including long narrow-glyph labels', async () => {
+  const fonts = await loadTestFonts();
+  const allShort = wrapCandidates('i i i i', false, 28, fonts);
+  assert.equal(allShort.length, 7);
+  const narrow = wrapCandidates(Array(50).fill('i').join(' '), false, 28, fonts);
+  assert.ok(narrow.length > 0);
+  assert.ok(narrow.every((candidate) => candidate.width <= 392));
+});
+
 test('validates Greek and Cyrillic using bundled Noto Sans glyphs', async () => {
   const fonts = await loadTestFonts();
   for (const font of [fonts.regular, fonts.bold]) {
