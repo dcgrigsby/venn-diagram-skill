@@ -138,6 +138,19 @@ test('invalid spec and unsupported glyph exit one without final images', async (
   }
 }));
 
+test('built CLI reports an unsupported overlap glyph with its label path', async () => inTemp(async (directory) => {
+  const { run, report } = await runBuiltRenderer('two-basic.json', directory, (raw) => {
+    raw.overlaps.ab.text = 'Viable 😀';
+  });
+  assert.equal(run.status, 1, run.stderr);
+  assert.equal(report.status, 'error');
+  assert.equal(report.error.code, 'UNSUPPORTED_GLYPH');
+  assert.equal(report.error.path, 'overlaps.ab.text');
+  assert.match(report.error.message, /😀/u);
+  assert.doesNotMatch(report.error.message, /unable to read specification/i);
+  assert.deepEqual(await readdir(join(directory, 'output')).catch(() => []), []);
+}));
+
 test('corrupt injected WASM keeps valid SVG, cleans PNG reservation, and rerun chooses -2', async () => inTemp(async (directory) => {
   const raw = await fixture('two-basic.json');
   raw.output.directory = join(directory, 'output');

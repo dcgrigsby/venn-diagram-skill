@@ -171,6 +171,11 @@ function preparedLabels(spec, fonts) {
     try {
       return { ...label, candidates: wrapCandidates(label.text, label.bold, DIAGRAM_FONT_SIZE, fonts) };
     } catch (error) {
+      if (error instanceof TypographyError && error.code === 'UNSUPPORTED_GLYPH') {
+        error.path = label.key.length === 1
+          ? `sets[${spec.sets.findIndex((set) => set.id === label.key)}].label`
+          : `overlaps.${label.key}.text`;
+      }
       if (!(error instanceof TypographyError) || error.code !== 'LABEL_TOO_LONG') throw error;
       return { ...label, candidates: [] };
     }

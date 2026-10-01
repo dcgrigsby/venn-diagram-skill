@@ -1,7 +1,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { normalizeSpec, SpecError } from './spec.mjs';
-import { loadFonts } from './typography.mjs';
+import { loadFonts, TypographyError } from './typography.mjs';
 import { layoutDiagram } from './layout.mjs';
 import { serializeSvg } from './svg.mjs';
 import { atomicOverwritePair, atomicWrite, reserveOutputPair } from './output.mjs';
@@ -17,7 +17,9 @@ export const RENDERER_INFO = Object.freeze({
 function reportError(error, context = {}) {
   const detail = error instanceof SpecError
     ? error
-    : new SpecError('INPUT_ERROR', '$', 'unable to read specification file');
+    : error instanceof TypographyError
+      ? new SpecError(error.code, error.path ?? (error.code === 'FONT_LOAD_FAILED' ? 'fonts' : 'labels'), error.message)
+      : new SpecError('RENDER_ERROR', '$', 'unable to render diagram');
   process.stdout.write(`${JSON.stringify({
     status: 'error',
     complete: false,
@@ -38,7 +40,12 @@ export async function main(argv = process.argv.slice(2), { wasmUrl } = {}) {
     let output;
     let pngDimensions;
     try {
-      const source = await readFile(specPath, 'utf8');
+      let source;
+      try {
+        source = await readFile(specPath, 'utf8');
+      } catch {
+        throw new SpecError('INPUT_ERROR', '$', 'unable to read specification file');
+      }
       let raw;
       try {
         raw = JSON.parse(source);

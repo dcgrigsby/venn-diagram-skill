@@ -8,9 +8,9 @@ This README is for humans evaluating or installing the skill. Agent instructions
 
 Generated diagrams may include AI-inferred wording or relationships. Review the content before use. Circle and overlap areas are conceptual and do not represent quantities. Automatic text contrast is a best effort. The software is provided without warranty under the terms of the [Apache License 2.0](LICENSE).
 
-## Install after release
+## Install
 
-Requires Node.js 20 or newer. Once this development notice is removed, install with:
+Requires Node.js 20 or newer. Install with:
 
 ```bash
 npx skills add dcgrigsby/venn-diagram-skill -g

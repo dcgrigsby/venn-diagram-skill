@@ -103,6 +103,7 @@ export function wrapCandidates(text, bold, fontSize, fonts) {
   if (!candidates.length) {
     throw new TypographyError('LABEL_TOO_LONG', 'label cannot fit within three lines');
   }
+  // Approved two-line behavior puts fewer lines before width and balance, superseding the original plan tuple.
   candidates.sort((a, b) => {
     const firstFour = a.lines.length - b.lines.length
       || a.width - b.width

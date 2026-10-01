@@ -16999,6 +16999,9 @@ function preparedLabels(spec, fonts) {
     try {
       return { ...label, candidates: wrapCandidates(label.text, label.bold, DIAGRAM_FONT_SIZE, fonts) };
     } catch (error) {
+      if (error instanceof TypographyError && error.code === "UNSUPPORTED_GLYPH") {
+        error.path = label.key.length === 1 ? `sets[${spec.sets.findIndex((set) => set.id === label.key)}].label` : `overlaps.${label.key}.text`;
+      }
       if (!(error instanceof TypographyError) || error.code !== "LABEL_TOO_LONG") throw error;
       return { ...label, candidates: [] };
     }
@@ -18047,7 +18050,7 @@ var RENDERER_INFO = Object.freeze({
   schemaVersion: 1
 });
 function reportError(error, context = {}) {
-  const detail = error instanceof SpecError ? error : new SpecError("INPUT_ERROR", "$", "unable to read specification file");
+  const detail = error instanceof SpecError ? error : error instanceof TypographyError ? new SpecError(error.code, error.path ?? (error.code === "FONT_LOAD_FAILED" ? "fonts" : "labels"), error.message) : new SpecError("RENDER_ERROR", "$", "unable to render diagram");
   process.stdout.write(`${JSON.stringify({
     status: "error",
     complete: false,
@@ -18070,7 +18073,12 @@ async function main(argv = process.argv.slice(2), { wasmUrl } = {}) {
     let output;
     let pngDimensions;
     try {
-      const source = await readFile3(specPath, "utf8");
+      let source;
+      try {
+        source = await readFile3(specPath, "utf8");
+      } catch {
+        throw new SpecError("INPUT_ERROR", "$", "unable to read specification file");
+      }
       let raw;
       try {
         raw = JSON.parse(source);
