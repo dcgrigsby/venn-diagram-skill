@@ -39,3 +39,19 @@ test('skill evaluations cover six distinct prompts with the skill-creator contra
       && expectation.length > 20));
   }
 });
+
+test('README documents a project-first public install and the material disclaimers', async () => {
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
+
+  assert.match(readme, /npx skills add dcgrigsby\/venn-diagram-skill\s*```/);
+  assert.match(readme, /project-scoped/i);
+  assert.match(readme, /-a claude-code -a gemini-cli -a codex -a zed -a cursor/);
+  assert.match(readme, /optional global install/i);
+  assert.match(readme, /shell and filesystem access/i);
+  assert.match(readme, /save both SVG and PNG files under \.\/output/i);
+  assert.match(readme, /AI-inferred wording or relationships/i);
+  assert.match(readme, /do not represent quantities/i);
+  assert.match(readme, /best effort/i);
+  assert.match(readme, /without warranty/i);
+  assert.match(readme, /licenses\/THIRD_PARTY_NOTICES\.md/);
+});

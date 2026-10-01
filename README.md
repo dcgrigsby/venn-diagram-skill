@@ -10,17 +10,44 @@ Generated diagrams may include AI-inferred wording or relationships. Review the 
 
 ## Install
 
-Requires Node.js 20 or newer. Install with:
+The skill requires Node.js 20 or newer at render time and an agent with local shell and filesystem access. The renderer, fonts, and WASM runtime are bundled; no separate package install, browser, Python environment, or system image utility is required.
+
+### Project-scoped install (recommended)
+
+From the project where you want to use the skill, run:
+
+```bash
+npx skills add dcgrigsby/venn-diagram-skill
+```
+
+Choose your agent and project scope when prompted. A project-scoped install stays with that project instead of changing your user-level agent configuration.
+
+For a non-interactive project install targeting Claude Code, Gemini CLI, Codex, Zed, and Cursor, use:
+
+```bash
+npx --yes skills@1.7.0 add dcgrigsby/venn-diagram-skill --copy -y \
+  -a claude-code -a gemini-cli -a codex -a zed -a cursor
+```
+
+This multi-agent command was exercised in a clean project. The automated release smoke test additionally installs for Codex and renders both output formats from the installed copy.
+
+The skill has been tested with `skills` 1.7.0. Agent names and supported clients may change in later versions; run `npx skills add --help` for the current list.
+
+### Optional global install
+
+If you want the skill available across projects, add `-g` and select the agents you use:
 
 ```bash
 npx skills add dcgrigsby/venn-diagram-skill -g
 ```
 
-The installed skill carries its renderer, fonts, and WASM runtime. No separate package install, browser, Python environment, or system image utility is required after installation.
-
 ## Usage
 
-Ask a skill-aware agent naturally. For example:
+Start your selected agent from the project directory and ask naturally. For example:
+
+> Create a three-set Venn diagram for Desirable, Feasible, and Viable. Label the center “Product-market fit” in bold. Use a white background and save both SVG and PNG files under ./output with the basename product-market-fit.
+
+Other examples:
 
 > Create a Venn diagram for Product and Engineering. Product brings customer priorities, Engineering brings reliable implementation, and the overlap is a viable roadmap.
 
@@ -47,4 +74,4 @@ The approved design is documented in [docs/superpowers/specs/2026-09-29-venn-dia
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0 — see [LICENSE](LICENSE). The bundled fonts and WASM renderer retain their own licenses; see [third-party notices](licenses/THIRD_PARTY_NOTICES.md).
