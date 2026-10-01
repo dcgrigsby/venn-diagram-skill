@@ -4,10 +4,6 @@ A portable agent skill for creating conceptual two-set and three-set Venn diagra
 
 This README is for humans evaluating or installing the skill. Agent instructions are in [SKILL.md](SKILL.md).
 
-## 🚧 IN DEVELOPMENT — NOT READY TO INSTALL
-
-The skill package is implemented, but the final release review is still in progress. Do not install from this repository until this notice is removed.
-
 ## Disclaimer
 
 Generated diagrams may include AI-inferred wording or relationships. Review the content before use. Circle and overlap areas are conceptual and do not represent quantities. Automatic text contrast is a best effort. The software is provided without warranty under the terms of the [Apache License 2.0](LICENSE).
