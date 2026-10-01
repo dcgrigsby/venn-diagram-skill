@@ -107,10 +107,15 @@ function preferredAnchor(key, circles) {
     if (key.length === 3) return { x: 0, y: 0 };
     if (key.length === 1) {
       const circle = circles.find(({ id }) => id === key);
-      const length = Math.hypot(circle.cx, circle.cy);
+      const centerDistance = Math.hypot(circle.cx, circle.cy);
+      // Along the region's symmetry axis, balance clearance to the set's
+      // outer boundary with clearance to either neighboring circle. This is
+      // the maximum-clearance point of the exclusive lobe.
+      const offset = (4 * circle.r ** 2 - 3 * centerDistance ** 2)
+        / (4 * circle.r + 3 * centerDistance);
       return {
-        x: circle.cx + circle.r * 0.45 * circle.cx / length,
-        y: circle.cy + circle.r * 0.45 * circle.cy / length,
+        x: circle.cx + offset * circle.cx / centerDistance,
+        y: circle.cy + offset * circle.cy / centerDistance,
       };
     }
     const included = circles.filter(({ id }) => key.includes(id));

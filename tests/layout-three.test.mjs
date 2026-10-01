@@ -62,6 +62,48 @@ test('omits unnamed pair overlaps while retaining a named center', async () => {
   assert.equal(Object.hasOwn(layout, 'leaderLines'), false);
 });
 
+test('centers short set labels at the maximum-clearance point of each exclusive region', async () => {
+  const layout = await layoutInline({
+    sets: [
+      { id: 'a', label: 'AI' },
+      { id: 'b', label: 'Product' },
+      { id: 'c', label: 'Strategy' },
+    ],
+    overlaps: { abc: { text: 'Me' } },
+  });
+  assertThreeSetLayout(layout);
+
+  const diagramCenter = {
+    x: layout.circles.reduce((sum, circle) => sum + circle.cx, 0) / 3,
+    y: layout.circles.reduce((sum, circle) => sum + circle.cy, 0) / 3,
+  };
+  for (const key of ['a', 'b', 'c']) {
+    const circle = layout.circles.find(({ id }) => id === key);
+    const label = layout.labels.find(({ key: labelKey }) => labelKey === key);
+    const actual = {
+      x: label.box.x + label.box.width / 2,
+      y: label.box.y + label.box.height / 2,
+    };
+    const outward = {
+      x: circle.cx - diagramCenter.x,
+      y: circle.cy - diagramCenter.y,
+    };
+    const labelOffset = {
+      x: actual.x - circle.cx,
+      y: actual.y - circle.cy,
+    };
+    assert.ok(outward.x * labelOffset.x + outward.y * labelOffset.y > 0,
+      `${key} label must sit outward from the diagram center`);
+    const clearances = [
+      circle.r - Math.hypot(actual.x - circle.cx, actual.y - circle.cy),
+      ...layout.circles.filter(({ id }) => id !== key)
+        .map((other) => Math.hypot(actual.x - other.cx, actual.y - other.cy) - other.r),
+    ];
+    assert.ok(Math.max(...clearances) - Math.min(...clearances) < 1e-7,
+      `${key} label must balance clearance to all three circle boundaries`);
+  }
+});
+
 test('bold center changes measured geometry while retaining the shared font size', async () => {
   const raw = {
     sets: [

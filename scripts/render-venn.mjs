@@ -16939,10 +16939,11 @@ function preferredAnchor(key, circles) {
     if (key.length === 3) return { x: 0, y: 0 };
     if (key.length === 1) {
       const circle = circles.find(({ id }) => id === key);
-      const length2 = Math.hypot(circle.cx, circle.cy);
+      const centerDistance = Math.hypot(circle.cx, circle.cy);
+      const offset2 = (4 * circle.r ** 2 - 3 * centerDistance ** 2) / (4 * circle.r + 3 * centerDistance);
       return {
-        x: circle.cx + circle.r * 0.45 * circle.cx / length2,
-        y: circle.cy + circle.r * 0.45 * circle.cy / length2
+        x: circle.cx + offset2 * circle.cx / centerDistance,
+        y: circle.cy + offset2 * circle.cy / centerDistance
       };
     }
     const included = circles.filter(({ id }) => key.includes(id));
